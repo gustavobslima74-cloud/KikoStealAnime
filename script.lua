@@ -54,7 +54,7 @@ if not success then
 end
 
 --========================================================--
--- BOTÃO FLUTUANTE (DIREITA DA TELA)
+-- BOTÃO FLUTUANTE
 --========================================================--
 
 local Floating = Instance.new("TextButton")
@@ -86,7 +86,7 @@ FloatingStroke.Parent = Floating
 
 local Menu = Instance.new("Frame")
 Menu.Name = "MainMenu"
-Menu.Size = UDim2.new(0, 280, 0, 400) -- Altura aumentada para caber o novo botão
+Menu.Size = UDim2.new(0, 280, 0, 400)
 Menu.Position = UDim2.new(0.85, -140, 0.35, -200)
 Menu.BackgroundColor3 = CONFIG.Background
 Menu.BorderSizePixel = 0
@@ -206,7 +206,6 @@ BaseList.ZIndex = 300
 BaseList.Parent = Content
 
 Instance.new("UICorner", BaseList).CornerRadius = UDim.new(0, 7)
-
 local BaseLayout = Instance.new("UIListLayout")
 BaseLayout.Padding = UDim.new(0, 1)
 BaseLayout.Parent = BaseList
@@ -225,7 +224,6 @@ CharacterList.ZIndex = 300
 CharacterList.Parent = Content
 
 Instance.new("UICorner", CharacterList).CornerRadius = UDim.new(0, 7)
-
 local CharacterLayout = Instance.new("UIListLayout")
 CharacterLayout.Padding = UDim.new(0, 1)
 CharacterLayout.Parent = CharacterList
@@ -273,7 +271,6 @@ local function ParseValueString(str)
     return num * (multipliers[suffix] or 1)
 end
 
--- Identifica qual base do mapa pertence a você
 local function GetMyBase()
     local Bases = workspace:FindFirstChild("Bases")
     if Bases then
@@ -357,14 +354,11 @@ local function GetBases()
         if PlayerName and PlayerName ~= "" then
             local maxRaw, maxStr = GetBaseHighestValue(Base)
             table.insert(Result, {
-                Object = Base, 
-                Name = PlayerName,
-                HighestRaw = maxRaw,
-                HighestStr = maxStr
+                Object = Base, Name = PlayerName,
+                HighestRaw = maxRaw, HighestStr = maxStr
             })
         end
     end
-    
     table.sort(Result, function(a, b) return a.HighestRaw > b.HighestRaw end)
     return Result
 end
@@ -381,17 +375,14 @@ local function GetCharacters(Base)
                 if Character:IsA("Model") then
                     local valStr = GetCharacterValue(Character)
                     table.insert(Result, {
-                        Object = Character,
-                        Name = Character.Name,
-                        Folder = FolderName,
-                        Value = valStr,
+                        Object = Character, Name = Character.Name,
+                        Folder = FolderName, Value = valStr,
                         RawValue = ParseValueString(valStr)
                     })
                 end
             end
         end
     end
-
     table.sort(Result, function(a, b) return a.RawValue > b.RawValue end)
     return Result
 end
@@ -525,29 +516,26 @@ AutoLockButton.MouseButton1Click:Connect(function()
 end)
 
 task.spawn(function()
-    while task.wait(1.5) do
+    while task.wait(1) do
         if AutoLockEnabled then
             local MyBase = GetMyBase()
             if MyBase then
                 local LockButton = nil
                 
-                -- Procura a peça verde de bloquear na base
+                -- Procura a peça baseada no texto, ignorando restrição de CanCollide
                 for _, Obj in ipairs(MyBase:GetDescendants()) do
-                    if Obj:IsA("BasePart") then
-                        local IsTarget = false
-                        -- Procura por gui com o texto "Bloquear" ou "Lock"
-                        for _, Gui in ipairs(Obj:GetChildren()) do
-                            if Gui:IsA("BillboardGui") or Gui:IsA("SurfaceGui") then
-                                for _, Txt in ipairs(Gui:GetDescendants()) do
-                                    if Txt:IsA("TextLabel") and (string.find(string.lower(Txt.Text), "bloquear") or string.find(string.lower(Txt.Text), "lock")) then
-                                        IsTarget = true
-                                        break
-                                    end
+                    if Obj:IsA("BasePart") and Obj.Transparency < 1 then
+                        local foundText = false
+                        for _, Desc in ipairs(Obj:GetDescendants()) do
+                            if Desc:IsA("TextLabel") then
+                                local txt = string.lower(Desc.Text)
+                                if string.find(txt, "bloquear") or string.find(txt, "lock") then
+                                    foundText = true
+                                    break
                                 end
                             end
                         end
-                        -- Garante que o botão está fisicamente visível/ativo no chão
-                        if IsTarget and Obj.Transparency < 1 and Obj.CanCollide then
+                        if foundText then
                             LockButton = Obj
                             break
                         end
@@ -559,18 +547,21 @@ task.spawn(function()
                     local HRP = Character and Character:FindFirstChild("HumanoidRootPart")
                     
                     if HRP then
-                        -- Tenta acionar o botão de forma invisível se o executor suportar
+                        -- Tenta firetouchinterest primariamente
                         if typeof(firetouchinterest) == "function" then
                             firetouchinterest(HRP, LockButton, 0)
-                            task.wait(0.1)
+                            task.wait(0.05)
                             firetouchinterest(HRP, LockButton, 1)
-                        else
-                            -- Se não suportar, dá um teleporte hiper rápido e volta pra não atrapalhar
-                            local OldCFrame = HRP.CFrame
-                            HRP.CFrame = LockButton.CFrame + Vector3.new(0, 1.5, 0)
-                            task.wait(0.2)
-                            HRP.CFrame = OldCFrame
                         end
+                        
+                        -- Método infalível: Teleporta exatamente para dentro da peça
+                        local OldCFrame = HRP.CFrame
+                        HRP.CFrame = LockButton.CFrame
+                        task.wait(0.15)
+                        HRP.CFrame = OldCFrame
+                        
+                        -- Espera um pouco para não bugar ou dar tp infinito
+                        task.wait(2)
                     end
                 end
             end
@@ -795,4 +786,4 @@ end)
 --========================================================--
 
 ApplySpeed()
-print("Kiko Anime Steal - Sistema de Bloqueio Automático ativado.")
+print("Kiko Anime Steal V3 - Correção Auto Lock.")
