@@ -60,7 +60,7 @@ end
 local Floating = Instance.new("TextButton")
 Floating.Name = "FloatingButton"
 Floating.Size = UDim2.new(0, 50, 0, 50)
-Floating.Position = UDim2.new(1, -70, 0.4, -25) -- Lado direito
+Floating.Position = UDim2.new(1, -70, 0.4, -25)
 Floating.BackgroundColor3 = CONFIG.Background
 Floating.BorderSizePixel = 0
 Floating.Text = "K"
@@ -81,13 +81,13 @@ FloatingStroke.Thickness = 2
 FloatingStroke.Parent = Floating
 
 --========================================================--
--- MENU (MAIS PRA DIREITA E ACIMA DO MEIO)
+-- MENU
 --========================================================--
 
 local Menu = Instance.new("Frame")
 Menu.Name = "MainMenu"
 Menu.Size = UDim2.new(0, 280, 0, 350)
-Menu.Position = UDim2.new(0.85, -140, 0.35, -175) -- Mais pra direita e acima do meio
+Menu.Position = UDim2.new(0.85, -140, 0.35, -175)
 Menu.BackgroundColor3 = CONFIG.Background
 Menu.BorderSizePixel = 0
 Menu.ClipsDescendants = true
@@ -283,6 +283,44 @@ local function ClearList(List)
     end
 end
 
+local function GetCharacterValue(Character)
+    if not Character then return nil end
+    for _, Object in ipairs(Character:GetDescendants()) do
+        if Object:IsA("TextLabel") or Object:IsA("TextButton") then
+            local Text = Object.Text
+            if Text and Text ~= "" then
+                if string.match(Text, "^%$?%d[%d%.]*[KkMmBbTt]?$") then
+                    return Text
+                end
+            end
+        end
+    end
+    return nil
+end
+
+local function GetBaseHighestValue(Base)
+    local highestValue = 0
+    local highestString = ""
+    local FolderNames = {"Characters", "RainbowCharacters", "CosmicCharacters"}
+    
+    for _, FolderName in ipairs(FolderNames) do
+        local Folder = Base:FindFirstChild(FolderName)
+        if Folder then
+            for _, Character in ipairs(Folder:GetChildren()) do
+                if Character:IsA("Model") then
+                    local valStr = GetCharacterValue(Character)
+                    local rawVal = ParseValueString(valStr)
+                    if rawVal > highestValue then
+                        highestValue = rawVal
+                        highestString = valStr or ""
+                    end
+                end
+            end
+        end
+    end
+    return highestValue, highestString
+end
+
 local function GetBases()
     local Result = {}
     local Bases = workspace:FindFirstChild("Bases")
@@ -305,26 +343,24 @@ local function GetBases()
                 end
             end
         end
+        
         if PlayerName and PlayerName ~= "" then
-            table.insert(Result, {Object = Base, Name = PlayerName})
+            local maxRaw, maxStr = GetBaseHighestValue(Base)
+            table.insert(Result, {
+                Object = Base, 
+                Name = PlayerName,
+                HighestRaw = maxRaw,
+                HighestStr = maxStr
+            })
         end
     end
+    
+    -- Organizar as bases da mais rica para a mais pobre
+    table.sort(Result, function(a, b)
+        return a.HighestRaw > b.HighestRaw
+    end)
+    
     return Result
-end
-
-local function GetCharacterValue(Character)
-    if not Character then return nil end
-    for _, Object in ipairs(Character:GetDescendants()) do
-        if Object:IsA("TextLabel") or Object:IsA("TextButton") then
-            local Text = Object.Text
-            if Text and Text ~= "" then
-                if string.match(Text, "^%$?%d[%d%.]*[KkMmBbTt]?$") then
-                    return Text
-                end
-            end
-        end
-    end
-    return nil
 end
 
 local function GetCharacters(Base)
@@ -350,7 +386,7 @@ local function GetCharacters(Base)
         end
     end
 
-    -- Ordenar do mais caro para o mais barato
+    -- Organizar os personagens do mais caro para o mais barato
     table.sort(Result, function(a, b)
         return a.RawValue > b.RawValue
     end)
@@ -362,11 +398,17 @@ local function UpdateBases()
     ClearList(BaseList)
     local Bases = GetBases()
     for _, Data in ipairs(Bases) do
+        
+        local DisplayName = Data.Name
+        if Data.HighestStr and Data.HighestStr ~= "" then
+            DisplayName = DisplayName .. "  [Top: " .. Data.HighestStr .. "]"
+        end
+
         local Button = Instance.new("TextButton")
         Button.Size = UDim2.new(1, -4, 0, 28)
         Button.BackgroundColor3 = CONFIG.Element
         Button.BorderSizePixel = 0
-        Button.Text = "  " .. Data.Name
+        Button.Text = "  " .. DisplayName
         Button.TextColor3 = CONFIG.Text
         Button.Font = Enum.Font.Gotham
         Button.TextSize = 10
@@ -711,4 +753,4 @@ end)
 --========================================================--
 
 ApplySpeed()
-print("Kiko Anime Steal carregado e atualizado.")
+print("Kiko Anime Steal carregado - Organização avançada ativada.")
