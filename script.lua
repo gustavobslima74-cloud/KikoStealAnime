@@ -1,5 +1,5 @@
 --========================================================--
---            KIKO ANIME STEAL (CLEAN V2 - FIXED)         --
+--          KIKO ANIME STEAL (V3 - ENHANCED UI & SFX)      --
 --========================================================--
 
 local Players = game:GetService("Players")
@@ -8,26 +8,56 @@ local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
+local SoundService = game:GetService("SoundService")
 
 local LocalPlayer = Players.LocalPlayer
 
 --========================================================--
--- CONFIG
+-- CONFIGURAÇÕES & CORES
 --========================================================--
 
 local CONFIG = {
     Speed = 36,
     SpeedEnabled = true,
 
-    Background = Color3.fromRGB(0, 0, 0),
-    Element = Color3.fromRGB(15, 15, 15),
-    Accent = Color3.fromRGB(120, 120, 120),
+    Background = Color3.fromRGB(12, 12, 12),
+    Element = Color3.fromRGB(22, 22, 22),
+    ElementHover = Color3.fromRGB(32, 32, 32),
+    Accent = Color3.fromRGB(140, 140, 140),
+    AccentGold = Color3.fromRGB(255, 200, 50),
 
     Text = Color3.fromRGB(255, 255, 255),
-    SubText = Color3.fromRGB(170, 170, 170),
+    SubText = Color3.fromRGB(160, 160, 160),
 
-    Danger = Color3.fromRGB(255, 70, 70)
+    Success = Color3.fromRGB(75, 210, 125),
+    Danger = Color3.fromRGB(255, 75, 75),
+    Warning = Color3.fromRGB(255, 170, 40),
+    Info = Color3.fromRGB(80, 160, 255)
 }
+
+-- EFEITOS SONOROS (ROBLOX SOUND IDs)
+local SOUNDS = {
+    Click = "rbxassetid://6895079853",
+    Open = "rbxassetid://6895079853",
+    Close = "rbxassetid://6895079853",
+    RareFound = "rbxassetid://4612375232",
+    StealStart = "rbxassetid://138090596",
+    StealSuccess = "rbxassetid://2865227271",
+    Notification = "rbxassetid://9119713951"
+}
+
+local function PlaySound(soundId, volume)
+    task.spawn(function()
+        pcall(function()
+            local sound = Instance.new("Sound")
+            sound.SoundId = soundId
+            sound.Volume = volume or 0.7
+            sound.PlayOnRemove = true
+            sound.Parent = SoundService
+            sound:Destroy()
+        end)
+    end)
+end
 
 --========================================================--
 -- GUI INITIALIZATION
@@ -55,13 +85,114 @@ if not success then
 end
 
 --========================================================--
+-- SISTEMA DE NOTIFICAÇÕES (UI TOASTS)
+--========================================================--
+
+local NotifContainer = Instance.new("Frame")
+NotifContainer.Name = "NotifContainer"
+NotifContainer.Size = UDim2.new(0, 280, 1, -40)
+NotifContainer.Position = UDim2.new(1, -290, 0, 20)
+NotifContainer.BackgroundTransparency = 1
+NotifContainer.ZIndex = 2000
+NotifContainer.Parent = ScreenGui
+
+local NotifLayout = Instance.new("UIListLayout")
+NotifLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
+NotifLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+NotifLayout.SortOrder = Enum.SortOrder.LayoutOrder
+NotifLayout.Padding = UDim.new(0, 8)
+NotifLayout.Parent = NotifContainer
+
+local function Notify(title, message, duration, themeColor, soundId)
+    duration = duration or 4
+    themeColor = themeColor or CONFIG.Info
+    soundId = soundId or SOUNDS.Notification
+
+    PlaySound(soundId, 0.6)
+
+    local Toast = Instance.new("Frame")
+    Toast.Size = UDim2.new(1, 0, 0, 60)
+    Toast.BackgroundColor3 = CONFIG.Background
+    Toast.BorderSizePixel = 0
+    Toast.BackgroundTransparency = 1
+    Toast.ClipsDescendants = true
+    Toast.Parent = NotifContainer
+
+    local ToastCorner = Instance.new("UICorner")
+    ToastCorner.CornerRadius = UDim.new(0, 8)
+    ToastCorner.Parent = Toast
+
+    local ToastStroke = Instance.new("UIStroke")
+    ToastStroke.Color = themeColor
+    ToastStroke.Thickness = 1.5
+    ToastStroke.Transparency = 1
+    ToastStroke.Parent = Toast
+
+    local AccentBar = Instance.new("Frame")
+    AccentBar.Size = UDim2.new(0, 4, 1, 0)
+    AccentBar.BackgroundColor3 = themeColor
+    AccentBar.BorderSizePixel = 0
+    AccentBar.BackgroundTransparency = 1
+    AccentBar.Parent = Toast
+
+    local TitleLabel = Instance.new("TextLabel")
+    TitleLabel.Size = UDim2.new(1, -16, 0, 20)
+    TitleLabel.Position = UDim2.new(0, 12, 0, 8)
+    TitleLabel.BackgroundTransparency = 1
+    TitleLabel.Text = title
+    TitleLabel.TextColor3 = themeColor
+    TitleLabel.Font = Enum.Font.GothamBold
+    TitleLabel.TextSize = 12
+    TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    TitleLabel.TextTransparency = 1
+    TitleLabel.Parent = Toast
+
+    local MsgLabel = Instance.new("TextLabel")
+    MsgLabel.Size = UDim2.new(1, -16, 0, 26)
+    MsgLabel.Position = UDim2.new(0, 12, 0, 26)
+    MsgLabel.BackgroundTransparency = 1
+    MsgLabel.Text = message
+    MsgLabel.TextColor3 = CONFIG.Text
+    MsgLabel.Font = Enum.Font.Gotham
+    MsgLabel.TextSize = 11
+    MsgLabel.TextWrapped = true
+    MsgLabel.TextXAlignment = Enum.TextXAlignment.Left
+    MsgLabel.TextTransparency = 1
+    MsgLabel.Parent = Toast
+
+    -- Animação de Entrada (Slide In & Fade In)
+    Toast.Position = UDim2.new(0, 50, 0, 0)
+    
+    local tweenInfo = TweenInfo.new(0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+    TweenService:Create(Toast, tweenInfo, {BackgroundTransparency = 0.05, Position = UDim2.new(0, 0, 0, 0)}):Play()
+    TweenService:Create(ToastStroke, tweenInfo, {Transparency = 0.3}):Play()
+    TweenService:Create(AccentBar, tweenInfo, {BackgroundTransparency = 0}):Play()
+    TweenService:Create(TitleLabel, tweenInfo, {TextTransparency = 0}):Play()
+    TweenService:Create(MsgLabel, tweenInfo, {TextTransparency = 0}):Play()
+
+    -- Saída Automática
+    task.delay(duration, function()
+        if Toast and Toast.Parent then
+            local fadeOut = TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
+            TweenService:Create(Toast, fadeOut, {BackgroundTransparency = 1, Position = UDim2.new(0, 60, 0, 0)}):Play()
+            TweenService:Create(ToastStroke, fadeOut, {Transparency = 1}):Play()
+            TweenService:Create(AccentBar, fadeOut, {BackgroundTransparency = 1}):Play()
+            TweenService:Create(TitleLabel, fadeOut, {TextTransparency = 1}):Play()
+            TweenService:Create(MsgLabel, fadeOut, {TextTransparency = 1}):Play()
+            task.wait(0.32)
+            Toast:Destroy()
+        end
+    end)
+end
+
+--========================================================--
 -- BOTÃO FLUTUANTE
 --========================================================--
 
 local Floating = Instance.new("TextButton")
 Floating.Name = "FloatingButton"
-Floating.Size = UDim2.new(0, 50, 0, 50)
-Floating.Position = UDim2.new(1, -70, 0.4, -25)
+Floating.Size = UDim2.new(0, 48, 0, 48)
+Floating.Position = UDim2.new(1, -65, 0.4, -24)
 Floating.BackgroundColor3 = CONFIG.Background
 Floating.BorderSizePixel = 0
 Floating.Text = "K"
@@ -82,28 +213,28 @@ FloatingStroke.Thickness = 2
 FloatingStroke.Parent = Floating
 
 --========================================================--
--- MENU
+-- MENU PRINCIPAL (CANVAS GROUP PARA ANIMAÇÃO SMOOTH)
 --========================================================--
 
-local Menu = Instance.new("Frame")
-Menu.Name = "MainMenu"
-Menu.Size = UDim2.new(0, 280, 0, 350)
-Menu.Position = UDim2.new(0.85, -140, 0.35, -175)
-Menu.BackgroundColor3 = CONFIG.Background
-Menu.BorderSizePixel = 0
-Menu.ClipsDescendants = true
-Menu.Visible = false
-Menu.ZIndex = 100
-Menu.Parent = ScreenGui
+local MenuContainer = Instance.new("CanvasGroup")
+MenuContainer.Name = "MainMenu"
+MenuContainer.Size = UDim2.new(0, 280, 0, 350)
+MenuContainer.Position = UDim2.new(0.85, -140, 0.35, -175)
+MenuContainer.BackgroundColor3 = CONFIG.Background
+MenuContainer.BorderSizePixel = 0
+MenuContainer.GroupTransparency = 1
+MenuContainer.Visible = false
+MenuContainer.ZIndex = 100
+MenuContainer.Parent = ScreenGui
 
 local MenuCorner = Instance.new("UICorner")
 MenuCorner.CornerRadius = UDim.new(0, 10)
-MenuCorner.Parent = Menu
+MenuCorner.Parent = MenuContainer
 
 local MenuStroke = Instance.new("UIStroke")
 MenuStroke.Color = CONFIG.Accent
 MenuStroke.Thickness = 1
-MenuStroke.Parent = Menu
+MenuStroke.Parent = MenuContainer
 
 --========================================================--
 -- HEADER
@@ -114,7 +245,7 @@ Header.Size = UDim2.new(1, 0, 0, 42)
 Header.BackgroundColor3 = CONFIG.Element
 Header.BorderSizePixel = 0
 Header.ZIndex = 101
-Header.Parent = Menu
+Header.Parent = MenuContainer
 
 local HeaderCorner = Instance.new("UICorner")
 HeaderCorner.CornerRadius = UDim.new(0, 10)
@@ -148,7 +279,7 @@ Close.Parent = Header
 Instance.new("UICorner", Close).CornerRadius = UDim.new(0, 6)
 
 --========================================================--
--- CONTAINER
+-- CONTAINER DE CONTEÚDO
 --========================================================--
 
 local Content = Instance.new("Frame")
@@ -156,11 +287,7 @@ Content.Size = UDim2.new(1, -20, 1, -52)
 Content.Position = UDim2.new(0, 10, 0, 48)
 Content.BackgroundTransparency = 1
 Content.ZIndex = 101
-Content.Parent = Menu
-
---========================================================--
--- BOTÃO PADRÃO
---========================================================--
+Content.Parent = MenuContainer
 
 local function CreateButton(Text, Y)
     local Button = Instance.new("TextButton")
@@ -182,9 +309,16 @@ local function CreateButton(Text, Y)
 
     local Stroke = Instance.new("UIStroke")
     Stroke.Color = CONFIG.Accent
-    Stroke.Transparency = 0.5
+    Stroke.Transparency = 0.6
     Stroke.Thickness = 1
     Stroke.Parent = Button
+
+    Button.MouseEnter:Connect(function()
+        TweenService:Create(Button, TweenInfo.new(0.2), {BackgroundColor3 = CONFIG.ElementHover}):Play()
+    end)
+    Button.MouseLeave:Connect(function()
+        TweenService:Create(Button, TweenInfo.new(0.2), {BackgroundColor3 = CONFIG.Element}):Play()
+    end)
 
     return Button
 end
@@ -242,14 +376,11 @@ local SelectedBase = nil
 local SelectedCharacter = nil
 local MenuOpen = false
 local SpeedEnabled = true
+local DetectedExpensiveList = {}
 
 --========================================================--
 -- FUNÇÕES DE SUPORTE
 --========================================================--
-
-local function Notify(Text)
-    print("[Kiko Anime Steal] " .. tostring(Text))
-end
 
 local function ClearList(List)
     for _, Object in ipairs(List:GetChildren()) do
@@ -335,6 +466,40 @@ local function GetBaseHighestValue(Base)
     return highestValue, highestString
 end
 
+--========================================================--
+-- DETECÇÃO DE ANIME CARO (100M+)
+--========================================================--
+
+local function CheckExpensiveAnimes(baseName, baseObject)
+    local FolderNames = {"Characters", "RainbowCharacters", "CosmicCharacters"}
+    for _, FolderName in ipairs(FolderNames) do
+        local Folder = baseObject:FindFirstChild(FolderName)
+        if Folder then
+            for _, Character in ipairs(Folder:GetChildren()) do
+                if Character:IsA("Model") then
+                    local valStr = GetCharacterValue(Character)
+                    local rawVal = ParseValueString(valStr)
+                    
+                    -- Se for maior ou igual a 100M (100,000,000)
+                    if rawVal >= 100000000 then
+                        local charId = Character:GetDebugId()
+                        if not DetectedExpensiveList[charId] then
+                            DetectedExpensiveList[charId] = true
+                            Notify(
+                                "🔥 ANIME RARO ENCONTRADO!",
+                                "Base: " .. baseName .. "\nItem: " .. Character.Name .. " (" .. (valStr or "100M+") .. ")",
+                                7,
+                                CONFIG.AccentGold,
+                                SOUNDS.RareFound
+                            )
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
 local function GetBases()
     local Result = {}
     local Bases = workspace:FindFirstChild("Bases")
@@ -359,6 +524,10 @@ local function GetBases()
 
         if PlayerName and PlayerName ~= "" then
             local maxRaw, maxStr = GetBaseHighestValue(Base)
+            
+            -- Verificar animes de 100M+
+            CheckExpensiveAnimes(PlayerName, Base)
+
             table.insert(Result, {
                 Object = Base, Name = PlayerName,
                 HighestRaw = maxRaw, HighestStr = maxStr
@@ -417,13 +586,14 @@ local function UpdateBases()
         Instance.new("UICorner", Button).CornerRadius = UDim.new(0, 5)
 
         Button.MouseButton1Click:Connect(function()
+            PlaySound(SOUNDS.Click, 0.5)
             SelectedBase = Data.Object
             SelectedCharacter = nil
             BaseButton.Text = "Base: " .. Data.Name
             CharacterButton.Text = "Selecionar Personagem"
             BaseList.Visible = false
             CharacterList.Visible = false
-            Notify("Base selecionada: " .. Data.Name)
+            Notify("Base Selecionada", Data.Name, 3, CONFIG.Info)
         end)
     end
     BaseList.CanvasSize = UDim2.new(0, 0, 0, BaseLayout.AbsoluteContentSize.Y + 5)
@@ -455,27 +625,41 @@ local function UpdateCharacters()
         Instance.new("UICorner", Button).CornerRadius = UDim.new(0, 5)
 
         Button.MouseButton1Click:Connect(function()
+            PlaySound(SOUNDS.Click, 0.5)
             SelectedCharacter = Data.Object
             CharacterButton.Text = DisplayName
             CharacterList.Visible = false
-            Notify("Personagem selecionado: " .. DisplayName)
+            Notify("Personagem Selecionado", DisplayName, 3, CONFIG.Info)
         end)
     end
     CharacterList.CanvasSize = UDim2.new(0, 0, 0, CharacterLayout.AbsoluteContentSize.Y + 5)
 end
 
+-- Scan em segundo plano para achar animes de 100M+
+task.spawn(function()
+    while true do
+        task.wait(10)
+        pcall(function() GetBases() end)
+    end
+end)
+
 --========================================================--
--- BOTÕES DE AÇÃO E LÓGICA
+-- LÓGICA DE AÇÕES
 --========================================================--
 
 BaseButton.MouseButton1Click:Connect(function()
+    PlaySound(SOUNDS.Click, 0.5)
     CharacterList.Visible = false
     BaseList.Visible = not BaseList.Visible
     if BaseList.Visible then UpdateBases() end
 end)
 
 CharacterButton.MouseButton1Click:Connect(function()
-    if not SelectedBase then Notify("Selecione uma base primeiro.") return end
+    PlaySound(SOUNDS.Click, 0.5)
+    if not SelectedBase then
+        Notify("Aviso", "Selecione uma base primeiro!", 3, CONFIG.Warning)
+        return
+    end
     BaseList.Visible = false
     CharacterList.Visible = not CharacterList.Visible
     if CharacterList.Visible then UpdateCharacters() end
@@ -503,11 +687,14 @@ local function ApplySpeed()
 end
 
 SpeedButton.MouseButton1Click:Connect(function()
+    PlaySound(SOUNDS.Click, 0.5)
     SpeedEnabled = not SpeedEnabled
     if SpeedEnabled then
         SpeedButton.Text = "⚡ SPEED: " .. CONFIG.Speed .. " | ON"
+        Notify("Speed", "Velocidade ativada (" .. CONFIG.Speed .. ")", 2.5, CONFIG.Success)
     else
         SpeedButton.Text = "⚡ SPEED: " .. CONFIG.Speed .. " | OFF"
+        Notify("Speed", "Velocidade desativada", 2.5, CONFIG.Warning)
     end
     ApplySpeed()
 end)
@@ -517,19 +704,33 @@ LocalPlayer.CharacterAdded:Connect(function()
     ApplySpeed()
 end)
 
+-- REJOIN
 RejoinButton.MouseButton1Click:Connect(function()
+    PlaySound(SOUNDS.Click, 0.5)
+    Notify("Reconectando...", "Conectando ao mesmo servidor novamente", 4, CONFIG.Info)
+    task.wait(0.5)
     TeleportService:Teleport(game.PlaceId, LocalPlayer)
 end)
 
+-- SERVER HOP
 ServerHopButton.MouseButton1Click:Connect(function()
-    Notify("Procurando servidor...")
+    PlaySound(SOUNDS.Click, 0.5)
+    Notify("Mudar de Servidor", "Buscando servidores disponíveis...", 3, CONFIG.Info)
+
     local Success, Response = pcall(function()
         return game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Desc&limit=100")
     end)
-    if not Success then return end
+
+    if not Success then
+        Notify("Erro", "Falha ao carregar a lista de servidores.", 4, CONFIG.Danger)
+        return
+    end
 
     local SuccessDecode, Data = pcall(function() return HttpService:JSONDecode(Response) end)
-    if not SuccessDecode or not Data then return end
+    if not SuccessDecode or not Data then
+        Notify("Erro", "Erro ao processar dados dos servidores.", 4, CONFIG.Danger)
+        return
+    end
 
     local Available = {}
     for _, Server in ipairs(Data.data or {}) do
@@ -537,15 +738,29 @@ ServerHopButton.MouseButton1Click:Connect(function()
             table.insert(Available, Server.id)
         end
     end
+
     if #Available > 0 then
         local ServerId = Available[math.random(1, #Available)]
+        Notify("Servidor Encontrado!", "Entrando no novo servidor...", 4, CONFIG.Success)
+        task.wait(0.5)
         TeleportService:TeleportToPlaceInstance(game.PlaceId, ServerId, LocalPlayer)
+    else
+        Notify("Servidores Cheios", "Nenhum servidor com vaga encontrado no momento.", 4, CONFIG.Warning)
     end
 end)
 
+-- STEAL COM TIMEOUT / RECONTAGEM
 StealButton.MouseButton1Click:Connect(function()
-    if not SelectedBase then Notify("Selecione uma base.") return end
-    if not SelectedCharacter then Notify("Selecione um personagem.") return end
+    PlaySound(SOUNDS.Click, 0.5)
+    if not SelectedBase then
+        Notify("Aviso", "Selecione uma base!", 3, CONFIG.Warning)
+        return
+    end
+    if not SelectedCharacter then
+        Notify("Aviso", "Selecione um personagem!", 3, CONFIG.Warning)
+        return
+    end
+
     local Character = LocalPlayer.Character
     if not Character then return end
 
@@ -553,8 +768,12 @@ StealButton.MouseButton1Click:Connect(function()
     local Humanoid = Character:FindFirstChildOfClass("Humanoid")
     local TargetHRP = SelectedCharacter:FindFirstChild("HumanoidRootPart")
 
-    if not HRP or not Humanoid or not TargetHRP then Notify("Personagem sem RootPart.") return end
-    Notify("Iniciando Steal...")
+    if not HRP or not Humanoid or not TargetHRP then
+        Notify("Erro", "Não foi possível localizar o alvo.", 3, CONFIG.Danger)
+        return
+    end
+
+    PlaySound(SOUNDS.StealStart, 0.8)
     local OldCFrame = HRP.CFrame
 
     local Noclip = RunService.Stepped:Connect(function()
@@ -584,10 +803,18 @@ StealButton.MouseButton1Click:Connect(function()
         end
     end)
 
-    task.wait(6)
+    -- Notificação e Contagem Regressiva
+    local totalWait = 6
+    task.spawn(function()
+        for i = totalWait, 1, -1 do
+            Notify("⚡ ROUBANDO ANIME...", "Aguarde " .. i .. "s para o retorno automático!", 1, CONFIG.Warning)
+            task.wait(1)
+        end
+    end)
+
+    task.wait(totalWait)
 
     local MyBase = GetMyBase()
-
     if MyBase then
         local Collect = MyBase:FindFirstChild("StealCollect2")
         if Collect and Collect:IsA("BasePart") then
@@ -610,37 +837,52 @@ StealButton.MouseButton1Click:Connect(function()
             if Part:IsA("BasePart") then Part.CanCollide = true end
         end
     end
+
     ApplySpeed()
-    Notify("Steal finalizado.")
+    PlaySound(SOUNDS.StealSuccess, 0.8)
+    Notify("STEAL CONCLUÍDO!", "Você foi teleportado de volta com sucesso!", 4, CONFIG.Success)
 end)
 
 --========================================================--
--- ABRIR / FECHAR MENU
+-- ANIMAÇÕES DO MENU (OPEN / CLOSE CLEAN)
 --========================================================--
 
 local function OpenMenu()
+    PlaySound(SOUNDS.Open, 0.5)
     MenuOpen = true
-    Menu.Visible = true
-    Menu.Size = UDim2.new(0, 280, 0, 0)
-    TweenService:Create(Menu, TweenInfo.new(0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = UDim2.new(0, 280, 0, 350)}):Play()
+    MenuContainer.Visible = true
+    MenuContainer.Size = UDim2.new(0, 280, 0, 320)
+    MenuContainer.GroupTransparency = 1
+
+    local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+    TweenService:Create(MenuContainer, tweenInfo, {
+        GroupTransparency = 0,
+        Size = UDim2.new(0, 280, 0, 350)
+    }):Play()
 end
 
 local function CloseMenu()
+    PlaySound(SOUNDS.Close, 0.5)
     MenuOpen = false
     BaseList.Visible = false
     CharacterList.Visible = false
-    TweenService:Create(Menu, TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {Size = UDim2.new(0, 280, 0, 0)}):Play()
-    task.delay(0.21, function()
-        if not MenuOpen then Menu.Visible = false end
+
+    local tweenInfo = TweenInfo.new(0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
+    TweenService:Create(MenuContainer, tweenInfo, {
+        GroupTransparency = 1,
+        Size = UDim2.new(0, 280, 0, 320)
+    }):Play()
+
+    task.delay(0.26, function()
+        if not MenuOpen then
+            MenuContainer.Visible = false
+        end
     end)
 end
 
 Close.MouseButton1Click:Connect(CloseMenu)
 
---========================================================--
--- ATALHO NO TECLADO (TECLA K)
---========================================================--
-
+-- ATALHO DE TECLADO (K)
 UserInputService.InputBegan:Connect(function(Input, GameProcessed)
     if GameProcessed then return end
     if Input.KeyCode == Enum.KeyCode.K then
@@ -649,7 +891,7 @@ UserInputService.InputBegan:Connect(function(Input, GameProcessed)
 end)
 
 --========================================================--
--- ARRASTAR O MENU LIVREMENTE
+-- DRAY E BOTÃO FLUTUANTE
 --========================================================--
 
 local MenuDragging = false
@@ -659,14 +901,14 @@ Header.InputBegan:Connect(function(Input)
     if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
         MenuDragging = true
         MenuDragStart = Input.Position
-        MenuStartPos = Menu.Position
+        MenuStartPos = MenuContainer.Position
     end
 end)
 
 UserInputService.InputChanged:Connect(function(Input)
     if MenuDragging and (Input.UserInputType == Enum.UserInputType.MouseMovement or Input.UserInputType == Enum.UserInputType.Touch) then
         local Delta = Input.Position - MenuDragStart
-        Menu.Position = UDim2.new(
+        MenuContainer.Position = UDim2.new(
             MenuStartPos.X.Scale, MenuStartPos.X.Offset + Delta.X,
             MenuStartPos.Y.Scale, MenuStartPos.Y.Offset + Delta.Y
         )
@@ -678,10 +920,6 @@ UserInputService.InputEnded:Connect(function(Input)
         MenuDragging = false
     end
 end)
-
---========================================================--
--- ARRASTAR E CLICAR BOTÃO FLUTUANTE "K"
---========================================================--
 
 local Dragging = false
 local DragStart, StartPosition, HasMoved = false
@@ -725,4 +963,4 @@ end)
 --========================================================--
 
 ApplySpeed()
-print("Kiko Anime Steal - Versão v2 Atualizada e Carregada.")
+Notify("KIKO ANIME STEAL V3", "Carregado com sucesso! Pressione K ou clique no 'K' para abrir.", 5, CONFIG.Success)
