@@ -1,5 +1,5 @@
 --========================================================--
---      KIKO ANIME STEAL (V4 - VALOR + GANHOS POR /S)     --
+--      KIKO ANIME STEAL (V4 - VALOR + GANHOS POR /S)      --
 --========================================================--
 
 local Players = game:GetService("Players")
@@ -91,14 +91,14 @@ end
 local NotifContainer = Instance.new("Frame")
 NotifContainer.Name = "NotifContainer"
 NotifContainer.Size = UDim2.new(0, 280, 1, -40)
-NotifContainer.Position = UDim2.new(1, -290, 0, 20)
+NotifContainer.Position = UDim2.new(0, 10, 0, 20)
 NotifContainer.BackgroundTransparency = 1
 NotifContainer.ZIndex = 2000
 NotifContainer.Parent = ScreenGui
 
 local NotifLayout = Instance.new("UIListLayout")
 NotifLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
-NotifLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+NotifLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
 NotifLayout.SortOrder = Enum.SortOrder.LayoutOrder
 NotifLayout.Padding = UDim.new(0, 8)
 NotifLayout.Parent = NotifContainer
@@ -160,7 +160,7 @@ local function Notify(title, message, duration, themeColor, soundId)
     MsgLabel.TextTransparency = 1
     MsgLabel.Parent = Toast
 
-    Toast.Position = UDim2.new(0, 50, 0, 0)
+    Toast.Position = UDim2.new(0, -50, 0, 0)
     
     local tweenInfo = TweenInfo.new(0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
     TweenService:Create(Toast, tweenInfo, {BackgroundTransparency = 0.05, Position = UDim2.new(0, 0, 0, 0)}):Play()
@@ -172,7 +172,7 @@ local function Notify(title, message, duration, themeColor, soundId)
     task.delay(duration, function()
         if Toast and Toast.Parent then
             local fadeOut = TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
-            TweenService:Create(Toast, fadeOut, {BackgroundTransparency = 1, Position = UDim2.new(0, 60, 0, 0)}):Play()
+            TweenService:Create(Toast, fadeOut, {BackgroundTransparency = 1, Position = UDim2.new(0, -60, 0, 0)}):Play()
             TweenService:Create(ToastStroke, fadeOut, {Transparency = 1}):Play()
             TweenService:Create(AccentBar, fadeOut, {BackgroundTransparency = 1}):Play()
             TweenService:Create(TitleLabel, fadeOut, {TextTransparency = 1}):Play()
@@ -912,86 +912,24 @@ local function CloseMenu()
     end)
 end
 
-Close.MouseButton1Click:Connect(CloseMenu)
-
-UserInputService.InputBegan:Connect(function(Input, GameProcessed)
-    if GameProcessed then return end
-    if Input.KeyCode == Enum.KeyCode.K then
-        if MenuOpen then CloseMenu() else OpenMenu() end
+Floating.MouseButton1Click:Connect(function()
+    if MenuOpen then
+        CloseMenu()
+    else
+        OpenMenu()
     end
 end)
 
---========================================================--
--- DRAG E BOTÃO FLUTUANTE
---========================================================--
-
-local MenuDragging = false
-local MenuDragStart, MenuStartPos
-
-Header.InputBegan:Connect(function(Input)
-    if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
-        MenuDragging = true
-        MenuDragStart = Input.Position
-        MenuStartPos = MenuContainer.Position
-    end
+Close.MouseButton1Click:Connect(function()
+    CloseMenu()
 end)
 
-UserInputService.InputChanged:Connect(function(Input)
-    if MenuDragging and (Input.UserInputType == Enum.UserInputType.MouseMovement or Input.UserInputType == Enum.UserInputType.Touch) then
-        local Delta = Input.Position - MenuDragStart
-        MenuContainer.Position = UDim2.new(
-            MenuStartPos.X.Scale, MenuStartPos.X.Offset + Delta.X,
-            MenuStartPos.Y.Scale, MenuStartPos.Y.Offset + Delta.Y
-        )
-    end
-end)
-
-UserInputService.InputEnded:Connect(function(Input)
-    if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
-        MenuDragging = false
-    end
-end)
-
-local Dragging = false
-local DragStart, StartPosition, HasMoved = false
-
-Floating.InputBegan:Connect(function(Input)
-    if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
-        Dragging = true
-        HasMoved = false
-        DragStart = Input.Position
-        StartPosition = Floating.Position
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(Input)
-    if not Dragging then return end
-    if Input.UserInputType == Enum.UserInputType.MouseMovement or Input.UserInputType == Enum.UserInputType.Touch then
-        local Delta = Input.Position - DragStart
-        if Delta.Magnitude > 5 then
-            HasMoved = true
-            Floating.Position = UDim2.new(
-                StartPosition.X.Scale, StartPosition.X.Offset + Delta.X,
-                StartPosition.Y.Scale, StartPosition.Y.Offset + Delta.Y
-            )
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed and input.KeyCode == Enum.KeyCode.RightControl then
+        if MenuOpen then
+            CloseMenu()
+        else
+            OpenMenu()
         end
     end
 end)
-
-Floating.InputEnded:Connect(function(Input)
-    if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
-        if Dragging then
-            Dragging = false
-            if not HasMoved then
-                if MenuOpen then CloseMenu() else OpenMenu() end
-            end
-        end
-    end
-end)
-
---========================================================--
--- INICIALIZAÇÃO
---========================================================--
-
-ApplySpeed()
-Notify("KIKO ANIME STEAL V4", "Sistema atualizado com detecção de Valor + Ganhos /s!", 5, CONFIG.Success)
