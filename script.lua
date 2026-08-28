@@ -1,5 +1,5 @@
 --========================================================--
---          KIKO ANIME STEAL (V3 - ENHANCED UI & SFX)      --
+--      KIKO ANIME STEAL (V4 - VALOR + GANHOS POR /S)     --
 --========================================================--
 
 local Players = game:GetService("Players")
@@ -111,7 +111,7 @@ local function Notify(title, message, duration, themeColor, soundId)
     PlaySound(soundId, 0.6)
 
     local Toast = Instance.new("Frame")
-    Toast.Size = UDim2.new(1, 0, 0, 60)
+    Toast.Size = UDim2.new(1, 0, 0, 65)
     Toast.BackgroundColor3 = CONFIG.Background
     Toast.BorderSizePixel = 0
     Toast.BackgroundTransparency = 1
@@ -137,7 +137,7 @@ local function Notify(title, message, duration, themeColor, soundId)
 
     local TitleLabel = Instance.new("TextLabel")
     TitleLabel.Size = UDim2.new(1, -16, 0, 20)
-    TitleLabel.Position = UDim2.new(0, 12, 0, 8)
+    TitleLabel.Position = UDim2.new(0, 12, 0, 6)
     TitleLabel.BackgroundTransparency = 1
     TitleLabel.Text = title
     TitleLabel.TextColor3 = themeColor
@@ -148,19 +148,18 @@ local function Notify(title, message, duration, themeColor, soundId)
     TitleLabel.Parent = Toast
 
     local MsgLabel = Instance.new("TextLabel")
-    MsgLabel.Size = UDim2.new(1, -16, 0, 26)
-    MsgLabel.Position = UDim2.new(0, 12, 0, 26)
+    MsgLabel.Size = UDim2.new(1, -16, 0, 34)
+    MsgLabel.Position = UDim2.new(0, 12, 0, 24)
     MsgLabel.BackgroundTransparency = 1
     MsgLabel.Text = message
     MsgLabel.TextColor3 = CONFIG.Text
     MsgLabel.Font = Enum.Font.Gotham
-    MsgLabel.TextSize = 11
+    MsgLabel.TextSize = 10
     MsgLabel.TextWrapped = true
     MsgLabel.TextXAlignment = Enum.TextXAlignment.Left
     MsgLabel.TextTransparency = 1
     MsgLabel.Parent = Toast
 
-    -- Animação de Entrada (Slide In & Fade In)
     Toast.Position = UDim2.new(0, 50, 0, 0)
     
     local tweenInfo = TweenInfo.new(0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
@@ -170,7 +169,6 @@ local function Notify(title, message, duration, themeColor, soundId)
     TweenService:Create(TitleLabel, tweenInfo, {TextTransparency = 0}):Play()
     TweenService:Create(MsgLabel, tweenInfo, {TextTransparency = 0}):Play()
 
-    -- Saída Automática
     task.delay(duration, function()
         if Toast and Toast.Parent then
             local fadeOut = TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
@@ -213,7 +211,7 @@ FloatingStroke.Thickness = 2
 FloatingStroke.Parent = Floating
 
 --========================================================--
--- MENU PRINCIPAL (CANVAS GROUP PARA ANIMAÇÃO SMOOTH)
+-- MENU PRINCIPAL
 --========================================================--
 
 local MenuContainer = Instance.new("CanvasGroup")
@@ -379,7 +377,7 @@ local SpeedEnabled = true
 local DetectedExpensiveList = {}
 
 --========================================================--
--- FUNÇÕES DE SUPORTE
+-- FUNÇÕES DE SUPORTE E PARSER DE VALORES
 --========================================================--
 
 local function ClearList(List)
@@ -392,13 +390,48 @@ end
 
 local function ParseValueString(str)
     if not str then return 0 end
-    local clean = string.gsub(str, "[%$%,%s]", "")
-    local numStr, suffix = string.match(clean, "([%d%.]+)([KkMmBbTt]?)")
+    local clean = string.gsub(string.lower(str), "/s", "")
+    clean = string.gsub(clean, "/sec", "")
+    clean = string.gsub(clean, "[%$%,%s]", "")
+    local numStr, suffix = string.match(clean, "([%d%.]+)([kkmmbbtt]?)")
     if not numStr then return 0 end
     local num = tonumber(numStr) or 0
     suffix = string.upper(suffix or "")
     local multipliers = { [""] = 1, ["K"] = 1e3, ["M"] = 1e6, ["B"] = 1e9, ["T"] = 1e12 }
     return num * (multipliers[suffix] or 1)
+end
+
+-- EXTRAI TANTO O VALOR QUANTO OS GANHOS POR SEGUNDO (/S)
+local function GetCharacterStats(Character)
+    if not Character then return nil, nil, 0, 0 end
+    
+    local valueStr = nil
+    local incomeStr = nil
+    
+    for _, Object in ipairs(Character:GetDescendants()) do
+        if Object:IsA("TextLabel") or Object:IsA("TextButton") then
+            local text = Object.Text
+            if text and text ~= "" then
+                local lowerText = string.lower(text)
+                -- Identifica ganhos por segundo (/s)
+                if string.find(lowerText, "/s") or string.find(lowerText, "/sec") then
+                    if not incomeStr then
+                        incomeStr = text
+                    end
+                -- Identifica valor normal (ex: 100M, $500K)
+                elseif string.match(text, "%d[%d%.]*[KkMmBbTt]?") then
+                    if not valueStr then
+                        valueStr = text
+                    end
+                end
+            end
+        end
+    end
+    
+    local rawValue = ParseValueString(valueStr)
+    local rawIncome = ParseValueString(incomeStr)
+    
+    return valueStr, incomeStr, rawValue, rawIncome
 end
 
 local function MatchesPlayer(text)
@@ -431,39 +464,28 @@ local function GetMyBase()
     return nil
 end
 
-local function GetCharacterValue(Character)
-    if not Character then return nil end
-    for _, Object in ipairs(Character:GetDescendants()) do
-        if Object:IsA("TextLabel") or Object:IsA("TextButton") then
-            local Text = Object.Text
-            if Text and Text ~= "" and string.match(Text, "%d[%d%.]*[KkMmBbTt]?") then
-                return Text
-            end
-        end
-    end
-    return nil
-end
-
 local function GetBaseHighestValue(Base)
     local highestValue = 0
-    local highestString = ""
+    local highestValStr = ""
+    local highestIncStr = ""
+
     local FolderNames = {"Characters", "RainbowCharacters", "CosmicCharacters"}
     for _, FolderName in ipairs(FolderNames) do
         local Folder = Base:FindFirstChild(FolderName)
         if Folder then
             for _, Character in ipairs(Folder:GetChildren()) do
                 if Character:IsA("Model") then
-                    local valStr = GetCharacterValue(Character)
-                    local rawVal = ParseValueString(valStr)
+                    local valStr, incStr, rawVal, rawInc = GetCharacterStats(Character)
                     if rawVal > highestValue then
                         highestValue = rawVal
-                        highestString = valStr or ""
+                        highestValStr = valStr or ""
+                        highestIncStr = incStr or ""
                     end
                 end
             end
         end
     end
-    return highestValue, highestString
+    return highestValue, highestValStr, highestIncStr
 end
 
 --========================================================--
@@ -477,17 +499,21 @@ local function CheckExpensiveAnimes(baseName, baseObject)
         if Folder then
             for _, Character in ipairs(Folder:GetChildren()) do
                 if Character:IsA("Model") then
-                    local valStr = GetCharacterValue(Character)
-                    local rawVal = ParseValueString(valStr)
+                    local valStr, incStr, rawVal, rawInc = GetCharacterStats(Character)
                     
-                    -- Se for maior ou igual a 100M (100,000,000)
-                    if rawVal >= 100000000 then
+                    -- Se o valor ou os ganhos equivalerem a >= 100M (100,000,000)
+                    if rawVal >= 100000000 or rawInc >= 100000000 then
                         local charId = Character:GetDebugId()
                         if not DetectedExpensiveList[charId] then
                             DetectedExpensiveList[charId] = true
+
+                            local detailText = "Base: " .. baseName .. "\nItem: " .. Character.Name
+                            if valStr then detailText = detailText .. "\nValor: " .. valStr end
+                            if incStr then detailText = detailText .. " (" .. incStr .. ")" end
+
                             Notify(
                                 "🔥 ANIME RARO ENCONTRADO!",
-                                "Base: " .. baseName .. "\nItem: " .. Character.Name .. " (" .. (valStr or "100M+") .. ")",
+                                detailText,
                                 7,
                                 CONFIG.AccentGold,
                                 SOUNDS.RareFound
@@ -523,14 +549,13 @@ local function GetBases()
         end
 
         if PlayerName and PlayerName ~= "" then
-            local maxRaw, maxStr = GetBaseHighestValue(Base)
+            local maxRaw, maxValStr, maxIncStr = GetBaseHighestValue(Base)
             
-            -- Verificar animes de 100M+
             CheckExpensiveAnimes(PlayerName, Base)
 
             table.insert(Result, {
                 Object = Base, Name = PlayerName,
-                HighestRaw = maxRaw, HighestStr = maxStr
+                HighestRaw = maxRaw, HighestValStr = maxValStr, HighestIncStr = maxIncStr
             })
         end
     end
@@ -548,11 +573,11 @@ local function GetCharacters(Base)
         if Folder then
             for _, Character in ipairs(Folder:GetChildren()) do
                 if Character:IsA("Model") then
-                    local valStr = GetCharacterValue(Character)
+                    local valStr, incStr, rawVal, rawInc = GetCharacterStats(Character)
                     table.insert(Result, {
                         Object = Character, Name = Character.Name,
-                        Folder = FolderName, Value = valStr,
-                        RawValue = ParseValueString(valStr)
+                        Folder = FolderName, ValueStr = valStr, IncomeStr = incStr,
+                        RawValue = rawVal, RawIncome = rawInc
                     })
                 end
             end
@@ -567,8 +592,13 @@ local function UpdateBases()
     local Bases = GetBases()
     for _, Data in ipairs(Bases) do
         local DisplayName = Data.Name
-        if Data.HighestStr and Data.HighestStr ~= "" then
-            DisplayName = DisplayName .. "  [Top: " .. Data.HighestStr .. "]"
+        local tagParts = {}
+
+        if Data.HighestValStr ~= "" then table.insert(tagParts, Data.HighestValStr) end
+        if Data.HighestIncStr ~= "" then table.insert(tagParts, Data.HighestIncStr) end
+
+        if #tagParts > 0 then
+            DisplayName = DisplayName .. "  [" .. table.concat(tagParts, " | ") .. "]"
         end
 
         local Button = Instance.new("TextButton")
@@ -606,8 +636,13 @@ local function UpdateCharacters()
     local Characters = GetCharacters(SelectedBase)
     for _, Data in ipairs(Characters) do
         local DisplayName = Data.Name
-        if Data.Value then
-            DisplayName = DisplayName .. "  [" .. Data.Value .. "]"
+        local tagParts = {}
+
+        if Data.ValueStr then table.insert(tagParts, "Val: " .. Data.ValueStr) end
+        if Data.IncomeStr then table.insert(tagParts, Data.IncomeStr) end
+
+        if #tagParts > 0 then
+            DisplayName = DisplayName .. "  [" .. table.concat(tagParts, " | ") .. "]"
         end
 
         local Button = Instance.new("TextButton")
@@ -635,7 +670,7 @@ local function UpdateCharacters()
     CharacterList.CanvasSize = UDim2.new(0, 0, 0, CharacterLayout.AbsoluteContentSize.Y + 5)
 end
 
--- Scan em segundo plano para achar animes de 100M+
+-- Scan em segundo plano
 task.spawn(function()
     while true do
         task.wait(10)
@@ -704,7 +739,6 @@ LocalPlayer.CharacterAdded:Connect(function()
     ApplySpeed()
 end)
 
--- REJOIN
 RejoinButton.MouseButton1Click:Connect(function()
     PlaySound(SOUNDS.Click, 0.5)
     Notify("Reconectando...", "Conectando ao mesmo servidor novamente", 4, CONFIG.Info)
@@ -712,7 +746,6 @@ RejoinButton.MouseButton1Click:Connect(function()
     TeleportService:Teleport(game.PlaceId, LocalPlayer)
 end)
 
--- SERVER HOP
 ServerHopButton.MouseButton1Click:Connect(function()
     PlaySound(SOUNDS.Click, 0.5)
     Notify("Mudar de Servidor", "Buscando servidores disponíveis...", 3, CONFIG.Info)
@@ -803,7 +836,6 @@ StealButton.MouseButton1Click:Connect(function()
         end
     end)
 
-    -- Notificação e Contagem Regressiva
     local totalWait = 6
     task.spawn(function()
         for i = totalWait, 1, -1 do
@@ -844,7 +876,7 @@ StealButton.MouseButton1Click:Connect(function()
 end)
 
 --========================================================--
--- ANIMAÇÕES DO MENU (OPEN / CLOSE CLEAN)
+-- ANIMAÇÕES DO MENU
 --========================================================--
 
 local function OpenMenu()
@@ -882,7 +914,6 @@ end
 
 Close.MouseButton1Click:Connect(CloseMenu)
 
--- ATALHO DE TECLADO (K)
 UserInputService.InputBegan:Connect(function(Input, GameProcessed)
     if GameProcessed then return end
     if Input.KeyCode == Enum.KeyCode.K then
@@ -891,7 +922,7 @@ UserInputService.InputBegan:Connect(function(Input, GameProcessed)
 end)
 
 --========================================================--
--- DRAY E BOTÃO FLUTUANTE
+-- DRAG E BOTÃO FLUTUANTE
 --========================================================--
 
 local MenuDragging = false
@@ -963,4 +994,4 @@ end)
 --========================================================--
 
 ApplySpeed()
-Notify("KIKO ANIME STEAL V3", "Carregado com sucesso! Pressione K ou clique no 'K' para abrir.", 5, CONFIG.Success)
+Notify("KIKO ANIME STEAL V4", "Sistema atualizado com detecção de Valor + Ganhos /s!", 5, CONFIG.Success)
