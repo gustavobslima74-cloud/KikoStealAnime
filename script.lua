@@ -1,5 +1,5 @@
 --========================================================--
---      KIKO ANIME STEAL (V4 - VALOR + GANHOS POR /S)     --
+--     KIKO ANIME STEAL (V5 - FILTRO DE BASE PRÓPRIA)     --
 --========================================================--
 
 local Players = game:GetService("Players")
@@ -501,7 +501,7 @@ local function CheckExpensiveAnimes(baseName, baseObject)
                 if Character:IsA("Model") then
                     local valStr, incStr, rawVal, rawInc = GetCharacterStats(Character)
                     
-                    -- Se o valor ou os ganhos equivalerem a >= 100M (100,000,000)
+                    -- Se o valor ou os ganhos equivalerem a >= 100M
                     if rawVal >= 100000000 or rawInc >= 100000000 then
                         local charId = Character:GetDebugId()
                         if not DetectedExpensiveList[charId] then
@@ -526,6 +526,7 @@ local function CheckExpensiveAnimes(baseName, baseObject)
     end
 end
 
+-- FILTRA AUTOMATICAMENTE A PRÓPRIA BASE PARA NÃO MOSTRAR NA LISTA NEM DISPARAR ALERTAS
 local function GetBases()
     local Result = {}
     local Bases = workspace:FindFirstChild("Bases")
@@ -533,6 +534,7 @@ local function GetBases()
 
     for _, Base in ipairs(Bases:GetChildren()) do
         local PlayerName
+        local isMyBase = false
         local Sign = Base:FindFirstChild("Sign")
         if Sign then
             local SignPart = Sign:FindFirstChild("SignPart")
@@ -542,13 +544,21 @@ local function GetBases()
                     local Label = SurfaceGui:FindFirstChild("TextLabel")
                     if Label then
                         local Text = Label.Text
+                        if MatchesPlayer(Text) then
+                            isMyBase = true
+                        end
                         PlayerName = string.match(Text, "(.+)'s [Bb]ase") or Text
                     end
                 end
             end
         end
 
-        if PlayerName and PlayerName ~= "" then
+        if PlayerName and MatchesPlayer(PlayerName) then
+            isMyBase = true
+        end
+
+        -- Apenas adiciona e verifica se NÃO for a base do próprio jogador
+        if PlayerName and PlayerName ~= "" and not isMyBase then
             local maxRaw, maxValStr, maxIncStr = GetBaseHighestValue(Base)
             
             CheckExpensiveAnimes(PlayerName, Base)
@@ -568,7 +578,7 @@ local function GetCharacters(Base)
     if not Base then return Result end
 
     local FolderNames = {"Characters", "RainbowCharacters", "CosmicCharacters"}
-    for _, FolderName in ipairs(FolderNames) do
+    for _, FolderName in ipairs(FolderName) do
         local Folder = Base:FindFirstChild(FolderName)
         if Folder then
             for _, Character in ipairs(Folder:GetChildren()) do
@@ -994,4 +1004,4 @@ end)
 --========================================================--
 
 ApplySpeed()
-Notify("KIKO ANIME STEAL V4", "Sistema atualizado com detecção de Valor + Ganhos /s!", 5, CONFIG.Success)
+Notify("KIKO ANIME STEAL V5", "Sua base foi removida das listas e notificações com sucesso!", 5, CONFIG.Success)
