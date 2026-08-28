@@ -1,5 +1,5 @@
 --========================================================--
---              KIKO ANIME STEAL (ATUALIZADO)            --
+--              KIKO ANIME STEAL (ESP LOCK)              --
 --========================================================--
 
 local Players = game:GetService("Players")
@@ -229,7 +229,7 @@ CharacterLayout.Padding = UDim.new(0, 1)
 CharacterLayout.Parent = CharacterList
 
 local StealButton = CreateButton("⚡ STEAL", 92)
-local AutoLockButton = CreateButton("🔒 AUTO BLOQUEAR BASE: OFF", 138)
+local LockESPButton = CreateButton("👁️ ESP BLOQUEAR BASE: OFF", 138)
 local SpeedButton = CreateButton("⚡ SPEED: 36 | ON", 184)
 local RejoinButton = CreateButton("↻ REJOIN SERVER", 230)
 local ServerHopButton = CreateButton("🌐 MUDAR DE SERVIDOR", 276)
@@ -242,7 +242,7 @@ local SelectedBase = nil
 local SelectedCharacter = nil
 local MenuOpen = false
 local SpeedEnabled = true
-local AutoLockEnabled = false
+local LockESPEnabled = false
 
 --========================================================--
 -- FUNÇÕES DE SUPORTE
@@ -368,7 +368,7 @@ local function GetCharacters(Base)
     if not Base then return Result end
 
     local FolderNames = {"Characters", "RainbowCharacters", "CosmicCharacters"}
-    for _, FolderName in ipairs(FolderNames) do
+    for _, FolderName in ipairs(FolderName) do
         local Folder = Base:FindFirstChild(FolderName)
         if Folder then
             for _, Character in ipairs(Folder:GetChildren()) do
@@ -499,72 +499,100 @@ SpeedButton.MouseButton1Click:Connect(function()
 end)
 
 --========================================================--
--- SISTEMA AUTO BLOQUEAR BASE (NOVO)
+-- SISTEMA ESP BLOQUEAR BASE (NOVO)
 --========================================================--
 
-AutoLockButton.MouseButton1Click:Connect(function()
-    AutoLockEnabled = not AutoLockEnabled
-    if AutoLockEnabled then
-        AutoLockButton.Text = "🔒 AUTO BLOQUEAR BASE: ON"
-        AutoLockButton.TextColor3 = Color3.fromRGB(100, 255, 100)
-        Notify("Auto Bloquear ativado.")
+local LockHighlight = nil
+local LockBillboard = nil
+local LockLabel = nil
+
+local function RemoveLockESP()
+    if LockHighlight then LockHighlight:Destroy() LockHighlight = nil end
+    if LockBillboard then LockBillboard:Destroy() LockBillboard = nil end
+    LockLabel = nil
+end
+
+LockESPButton.MouseButton1Click:Connect(function()
+    LockESPEnabled = not LockESPEnabled
+    if LockESPEnabled then
+        LockESPButton.Text = "👁️ ESP BLOQUEAR BASE: ON"
+        LockESPButton.TextColor3 = Color3.fromRGB(100, 255, 100)
+        Notify("ESP do Bloqueio Ativado.")
     else
-        AutoLockButton.Text = "🔒 AUTO BLOQUEAR BASE: OFF"
-        AutoLockButton.TextColor3 = CONFIG.Text
-        Notify("Auto Bloquear desativado.")
+        LockESPButton.Text = "👁️ ESP BLOQUEAR BASE: OFF"
+        LockESPButton.TextColor3 = CONFIG.Text
+        RemoveLockESP()
+        Notify("ESP do Bloqueio Desativado.")
     end
 end)
 
+-- Loop que escaneia a base e mantém o ESP ativo através das paredes
 task.spawn(function()
-    while task.wait(1) do
-        if AutoLockEnabled then
+    while task.wait(0.5) do
+        if LockESPEnabled then
             local MyBase = GetMyBase()
             if MyBase then
-                local LockButton = nil
-                
-                -- Procura a peça baseada no texto, ignorando restrição de CanCollide
-                for _, Obj in ipairs(MyBase:GetDescendants()) do
-                    if Obj:IsA("BasePart") and Obj.Transparency < 1 then
-                        local foundText = false
-                        for _, Desc in ipairs(Obj:GetDescendants()) do
-                            if Desc:IsA("TextLabel") then
-                                local txt = string.lower(Desc.Text)
-                                if string.find(txt, "bloquear") or string.find(txt, "lock") then
-                                    foundText = true
-                                    break
-                                end
+                local TargetPart = nil
+                local DisplayText = ""
+
+                -- Procura no modelo da sua base a parte/GUI do bloqueio
+                for _, Desc in ipairs(MyBase:GetDescendants()) do
+                    if Desc:IsA("TextLabel") then
+                        local txt = string.lower(Desc.Text)
+                        if string.find(txt, "bloquear") or string.find(txt, "lock") or string.find(txt, "s") or tonumber(txt) then
+                            local Part = Desc:FindFirstAncestorOfClass("BasePart")
+                            if Part then
+                                TargetPart = Part
+                                DisplayText = Desc.Text
+                                break
                             end
-                        end
-                        if foundText then
-                            LockButton = Obj
-                            break
                         end
                     end
                 end
 
-                if LockButton then
-                    local Character = LocalPlayer.Character
-                    local HRP = Character and Character:FindFirstChild("HumanoidRootPart")
-                    
-                    if HRP then
-                        -- Tenta firetouchinterest primariamente
-                        if typeof(firetouchinterest) == "function" then
-                            firetouchinterest(HRP, LockButton, 0)
-                            task.wait(0.05)
-                            firetouchinterest(HRP, LockButton, 1)
-                        end
-                        
-                        -- Método infalível: Teleporta exatamente para dentro da peça
-                        local OldCFrame = HRP.CFrame
-                        HRP.CFrame = LockButton.CFrame
-                        task.wait(0.15)
-                        HRP.CFrame = OldCFrame
-                        
-                        -- Espera um pouco para não bugar ou dar tp infinito
-                        task.wait(2)
+                if TargetPart then
+                    -- Brilho através das paredes (Highlight)
+                    if not LockHighlight or LockHighlight.Parent ~= TargetPart then
+                        if LockHighlight then LockHighlight:Destroy() end
+                        LockHighlight = Instance.new("Highlight")
+                        LockHighlight.Name = "LockESP_Glow"
+                        LockHighlight.FillColor = Color3.fromRGB(0, 255, 120)
+                        LockHighlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+                        LockHighlight.FillTransparency = 0.4
+                        LockHighlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                        LockHighlight.Parent = TargetPart
+                    end
+
+                    -- Texto visível de qualquer lugar (BillboardGui)
+                    if not LockBillboard or LockBillboard.Parent ~= TargetPart then
+                        if LockBillboard then LockBillboard:Destroy() end
+                        LockBillboard = Instance.new("BillboardGui")
+                        LockBillboard.Name = "LockESP_Text"
+                        LockBillboard.Size = UDim2.new(0, 200, 0, 50)
+                        LockBillboard.StudsOffset = Vector3.new(0, 3, 0)
+                        LockBillboard.AlwaysOnTop = true
+                        LockBillboard.Parent = TargetPart
+
+                        LockLabel = Instance.new("TextLabel")
+                        LockLabel.Size = UDim2.new(1, 0, 1, 0)
+                        LockLabel.BackgroundTransparency = 1
+                        LockLabel.TextColor3 = Color3.fromRGB(0, 255, 120)
+                        LockLabel.TextStrokeTransparency = 0
+                        LockLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+                        LockLabel.Font = Enum.Font.GothamBold
+                        LockLabel.TextSize = 16
+                        LockLabel.Parent = LockBillboard
+                    end
+
+                    if LockLabel then
+                        LockLabel.Text = "🔒 BASE LOCK\n" .. DisplayText
                     end
                 end
+            else
+                RemoveLockESP()
             end
+        else
+            RemoveLockESP()
         end
     end
 end)
@@ -786,4 +814,4 @@ end)
 --========================================================--
 
 ApplySpeed()
-print("Kiko Anime Steal V3 - Correção Auto Lock.")
+print("Kiko Anime Steal - ESP Lock ativado.")
