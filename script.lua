@@ -3,19 +3,6 @@
 --========================================================--
 
 local Players = game:GetService("Players")
-local TweenService = gameO menu não está abrindo por causa de dois problemas técnicos específicos no código que você colou:
-
-1. **Caracteres Inválidos (O principal causador):** O texto do script contém "espaços falsos" (non-breaking spaces) na indentação. Executores do Roblox não conseguem ler esses caracteres e geram um erro de sintaxe silencioso, impedindo que o script sequer inicie.
-2. **Sensibilidade do Botão Flutuante:** A lógica de arrastar o botão flutuante usava um limite de movimento muito baixo (`Magnitude > 5`). Qualquer micro-movimento do mouse ou dedo durante o clique fazia o script achar que você estava arrastando o ícone, cancelando a abertura do menu.
-
-Abaixo está o código totalmente limpo e corrigido. Os caracteres invisíveis foram removidos, a sensibilidade do clique foi ajustada para evitar o cancelamento acidental, e a injeção de som foi redirecionada para o `workspace` (pois alguns executores bloqueiam áudio no `SoundService`).
-
-```lua
---========================================================--
---            KIKO ANIME STEAL (ULTIMATE V2)             --
---========================================================--
-
-local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
