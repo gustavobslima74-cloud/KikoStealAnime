@@ -86,8 +86,8 @@ FloatingStroke.Parent = Floating
 
 local Menu = Instance.new("Frame")
 Menu.Name = "MainMenu"
-Menu.Size = UDim2.new(0, 280, 0, 350)
-Menu.Position = UDim2.new(0.85, -140, 0.35, -175)
+Menu.Size = UDim2.new(0, 280, 0, 400) -- Altura aumentada para caber o novo botão
+Menu.Position = UDim2.new(0.85, -140, 0.35, -200)
 Menu.BackgroundColor3 = CONFIG.Background
 Menu.BorderSizePixel = 0
 Menu.ClipsDescendants = true
@@ -231,9 +231,10 @@ CharacterLayout.Padding = UDim.new(0, 1)
 CharacterLayout.Parent = CharacterList
 
 local StealButton = CreateButton("⚡ STEAL", 92)
-local SpeedButton = CreateButton("⚡ SPEED: 36 | ON", 138)
-local RejoinButton = CreateButton("↻ REJOIN SERVER", 184)
-local ServerHopButton = CreateButton("🌐 MUDAR DE SERVIDOR", 230)
+local AutoLockButton = CreateButton("🔒 AUTO BLOQUEAR BASE: OFF", 138)
+local SpeedButton = CreateButton("⚡ SPEED: 36 | ON", 184)
+local RejoinButton = CreateButton("↻ REJOIN SERVER", 230)
+local ServerHopButton = CreateButton("🌐 MUDAR DE SERVIDOR", 276)
 
 --========================================================--
 -- VARIÁVEIS DE ESTADO
@@ -243,29 +244,7 @@ local SelectedBase = nil
 local SelectedCharacter = nil
 local MenuOpen = false
 local SpeedEnabled = true
-
---========================================================--
--- PARSER E ORDENAÇÃO DE VALOR
---========================================================--
-
-local function ParseValueString(str)
-    if not str then return 0 end
-    local clean = string.gsub(str, "[%$%,%s]", "")
-    local numStr, suffix = string.match(clean, "^([%d%.]+)([KkMmBbTt]?)$")
-    if not numStr then return 0 end
-    local num = tonumber(numStr) or 0
-    suffix = string.upper(suffix or "")
-    
-    local multipliers = {
-        [""] = 1,
-        ["K"] = 1e3,
-        ["M"] = 1e6,
-        ["B"] = 1e9,
-        ["T"] = 1e12
-    }
-    
-    return num * (multipliers[suffix] or 1)
-end
+local AutoLockEnabled = false
 
 --========================================================--
 -- FUNÇÕES DE SUPORTE
@@ -283,15 +262,47 @@ local function ClearList(List)
     end
 end
 
+local function ParseValueString(str)
+    if not str then return 0 end
+    local clean = string.gsub(str, "[%$%,%s]", "")
+    local numStr, suffix = string.match(clean, "^([%d%.]+)([KkMmBbTt]?)$")
+    if not numStr then return 0 end
+    local num = tonumber(numStr) or 0
+    suffix = string.upper(suffix or "")
+    local multipliers = { [""] = 1, ["K"] = 1e3, ["M"] = 1e6, ["B"] = 1e9, ["T"] = 1e12 }
+    return num * (multipliers[suffix] or 1)
+end
+
+-- Identifica qual base do mapa pertence a você
+local function GetMyBase()
+    local Bases = workspace:FindFirstChild("Bases")
+    if Bases then
+        for _, Base in ipairs(Bases:GetChildren()) do
+            local Sign = Base:FindFirstChild("Sign")
+            if Sign then
+                local SignPart = Sign:FindFirstChild("SignPart")
+                if SignPart then
+                    local SurfaceGui = SignPart:FindFirstChild("SurfaceGui")
+                    if SurfaceGui then
+                        local Label = SurfaceGui:FindFirstChild("TextLabel")
+                        if Label and string.find(string.lower(Label.Text), string.lower(LocalPlayer.Name), 1, true) then
+                            return Base
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return nil
+end
+
 local function GetCharacterValue(Character)
     if not Character then return nil end
     for _, Object in ipairs(Character:GetDescendants()) do
         if Object:IsA("TextLabel") or Object:IsA("TextButton") then
             local Text = Object.Text
-            if Text and Text ~= "" then
-                if string.match(Text, "^%$?%d[%d%.]*[KkMmBbTt]?$") then
-                    return Text
-                end
+            if Text and Text ~= "" and string.match(Text, "^%$?%d[%d%.]*[KkMmBbTt]?$") then
+                return Text
             end
         end
     end
@@ -302,7 +313,6 @@ local function GetBaseHighestValue(Base)
     local highestValue = 0
     local highestString = ""
     local FolderNames = {"Characters", "RainbowCharacters", "CosmicCharacters"}
-    
     for _, FolderName in ipairs(FolderNames) do
         local Folder = Base:FindFirstChild(FolderName)
         if Folder then
@@ -355,11 +365,7 @@ local function GetBases()
         end
     end
     
-    -- Organizar as bases da mais rica para a mais pobre
-    table.sort(Result, function(a, b)
-        return a.HighestRaw > b.HighestRaw
-    end)
-    
+    table.sort(Result, function(a, b) return a.HighestRaw > b.HighestRaw end)
     return Result
 end
 
@@ -386,11 +392,7 @@ local function GetCharacters(Base)
         end
     end
 
-    -- Organizar os personagens do mais caro para o mais barato
-    table.sort(Result, function(a, b)
-        return a.RawValue > b.RawValue
-    end)
-
+    table.sort(Result, function(a, b) return a.RawValue > b.RawValue end)
     return Result
 end
 
@@ -398,7 +400,6 @@ local function UpdateBases()
     ClearList(BaseList)
     local Bases = GetBases()
     for _, Data in ipairs(Bases) do
-        
         local DisplayName = Data.Name
         if Data.HighestStr and Data.HighestStr ~= "" then
             DisplayName = DisplayName .. "  [Top: " .. Data.HighestStr .. "]"
@@ -466,6 +467,10 @@ local function UpdateCharacters()
     CharacterList.CanvasSize = UDim2.new(0, 0, 0, CharacterLayout.AbsoluteContentSize.Y + 5)
 end
 
+--========================================================--
+-- BOTÕES DE AÇÃO E LÓGICA
+--========================================================--
+
 BaseButton.MouseButton1Click:Connect(function()
     CharacterList.Visible = false
     BaseList.Visible = not BaseList.Visible
@@ -492,7 +497,6 @@ SpeedButton.MouseButton1Click:Connect(function()
     if SpeedEnabled then
         SpeedButton.Text = "⚡ SPEED: " .. CONFIG.Speed .. " | ON"
         ApplySpeed()
-        Notify("Speed ativada.")
     else
         SpeedButton.Text = "⚡ SPEED: " .. CONFIG.Speed .. " | OFF"
         local Character = LocalPlayer.Character
@@ -500,9 +504,81 @@ SpeedButton.MouseButton1Click:Connect(function()
             local Humanoid = Character:FindFirstChildOfClass("Humanoid")
             if Humanoid then Humanoid.WalkSpeed = 16 end
         end
-        Notify("Speed desativada.")
     end
 end)
+
+--========================================================--
+-- SISTEMA AUTO BLOQUEAR BASE (NOVO)
+--========================================================--
+
+AutoLockButton.MouseButton1Click:Connect(function()
+    AutoLockEnabled = not AutoLockEnabled
+    if AutoLockEnabled then
+        AutoLockButton.Text = "🔒 AUTO BLOQUEAR BASE: ON"
+        AutoLockButton.TextColor3 = Color3.fromRGB(100, 255, 100)
+        Notify("Auto Bloquear ativado.")
+    else
+        AutoLockButton.Text = "🔒 AUTO BLOQUEAR BASE: OFF"
+        AutoLockButton.TextColor3 = CONFIG.Text
+        Notify("Auto Bloquear desativado.")
+    end
+end)
+
+task.spawn(function()
+    while task.wait(1.5) do
+        if AutoLockEnabled then
+            local MyBase = GetMyBase()
+            if MyBase then
+                local LockButton = nil
+                
+                -- Procura a peça verde de bloquear na base
+                for _, Obj in ipairs(MyBase:GetDescendants()) do
+                    if Obj:IsA("BasePart") then
+                        local IsTarget = false
+                        -- Procura por gui com o texto "Bloquear" ou "Lock"
+                        for _, Gui in ipairs(Obj:GetChildren()) do
+                            if Gui:IsA("BillboardGui") or Gui:IsA("SurfaceGui") then
+                                for _, Txt in ipairs(Gui:GetDescendants()) do
+                                    if Txt:IsA("TextLabel") and (string.find(string.lower(Txt.Text), "bloquear") or string.find(string.lower(Txt.Text), "lock")) then
+                                        IsTarget = true
+                                        break
+                                    end
+                                end
+                            end
+                        end
+                        -- Garante que o botão está fisicamente visível/ativo no chão
+                        if IsTarget and Obj.Transparency < 1 and Obj.CanCollide then
+                            LockButton = Obj
+                            break
+                        end
+                    end
+                end
+
+                if LockButton then
+                    local Character = LocalPlayer.Character
+                    local HRP = Character and Character:FindFirstChild("HumanoidRootPart")
+                    
+                    if HRP then
+                        -- Tenta acionar o botão de forma invisível se o executor suportar
+                        if typeof(firetouchinterest) == "function" then
+                            firetouchinterest(HRP, LockButton, 0)
+                            task.wait(0.1)
+                            firetouchinterest(HRP, LockButton, 1)
+                        else
+                            -- Se não suportar, dá um teleporte hiper rápido e volta pra não atrapalhar
+                            local OldCFrame = HRP.CFrame
+                            HRP.CFrame = LockButton.CFrame + Vector3.new(0, 1.5, 0)
+                            task.wait(0.2)
+                            HRP.CFrame = OldCFrame
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+--========================================================--
 
 LocalPlayer.CharacterAdded:Connect(function()
     task.wait(0.5)
@@ -516,8 +592,6 @@ task.spawn(function()
 end)
 
 RejoinButton.MouseButton1Click:Connect(function()
-    Notify("Reentrando...")
-    task.wait(0.5)
     TeleportService:Teleport(game.PlaceId, LocalPlayer)
 end)
 
@@ -526,10 +600,10 @@ ServerHopButton.MouseButton1Click:Connect(function()
     local Success, Response = pcall(function()
         return game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100")
     end)
-    if not Success then Notify("Erro ao buscar servidores.") return end
+    if not Success then return end
 
     local SuccessDecode, Data = pcall(function() return HttpService:JSONDecode(Response) end)
-    if not SuccessDecode or not Data then Notify("Erro nos servidores.") return end
+    if not SuccessDecode or not Data then return end
 
     local Available = {}
     for _, Server in ipairs(Data.data or {}) do
@@ -537,9 +611,10 @@ ServerHopButton.MouseButton1Click:Connect(function()
             table.insert(Available, Server.id)
         end
     end
-    if #Available == 0 then Notify("Nenhum servidor disponível.") return end
-    local ServerId = Available[math.random(1, #Available)]
-    TeleportService:TeleportToPlaceInstance(game.PlaceId, ServerId, LocalPlayer)
+    if #Available > 0 then
+        local ServerId = Available[math.random(1, #Available)]
+        TeleportService:TeleportToPlaceInstance(game.PlaceId, ServerId, LocalPlayer)
+    end
 end)
 
 StealButton.MouseButton1Click:Connect(function()
@@ -583,26 +658,7 @@ StealButton.MouseButton1Click:Connect(function()
 
     task.wait(6)
 
-    local MyBase
-    local Bases = workspace:FindFirstChild("Bases")
-    if Bases then
-        for _, Base in ipairs(Bases:GetChildren()) do
-            local Sign = Base:FindFirstChild("Sign")
-            if Sign then
-                local SignPart = Sign:FindFirstChild("SignPart")
-                if SignPart then
-                    local SurfaceGui = SignPart:FindFirstChild("SurfaceGui")
-                    if SurfaceGui then
-                        local Label = SurfaceGui:FindFirstChild("TextLabel")
-                        if Label and string.find(string.lower(Label.Text), string.lower(LocalPlayer.Name), 1, true) then
-                            MyBase = Base
-                            break
-                        end
-                    end
-                end
-            end
-        end
-    end
+    local MyBase = GetMyBase()
 
     if MyBase then
         local Collect = MyBase:FindFirstChild("StealCollect2")
@@ -636,7 +692,7 @@ local function OpenMenu()
     MenuOpen = true
     Menu.Visible = true
     Menu.Size = UDim2.new(0, 280, 0, 0)
-    TweenService:Create(Menu, TweenInfo.new(0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = UDim2.new(0, 280, 0, 350)}):Play()
+    TweenService:Create(Menu, TweenInfo.new(0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = UDim2.new(0, 280, 0, 400)}):Play()
 end
 
 local function CloseMenu()
@@ -658,16 +714,12 @@ Close.MouseButton1Click:Connect(CloseMenu)
 UserInputService.InputBegan:Connect(function(Input, GameProcessed)
     if GameProcessed then return end
     if Input.KeyCode == Enum.KeyCode.K then
-        if MenuOpen then
-            CloseMenu()
-        else
-            OpenMenu()
-        end
+        if MenuOpen then CloseMenu() else OpenMenu() end
     end
 end)
 
 --========================================================--
--- ARRASTAR O MENU LIVREMENTE (PELO HEADER)
+-- ARRASTAR O MENU LIVREMENTE
 --========================================================--
 
 local MenuDragging = false
@@ -685,10 +737,8 @@ UserInputService.InputChanged:Connect(function(Input)
     if MenuDragging and (Input.UserInputType == Enum.UserInputType.MouseMovement or Input.UserInputType == Enum.UserInputType.Touch) then
         local Delta = Input.Position - MenuDragStart
         Menu.Position = UDim2.new(
-            MenuStartPos.X.Scale,
-            MenuStartPos.X.Offset + Delta.X,
-            MenuStartPos.Y.Scale,
-            MenuStartPos.Y.Offset + Delta.Y
+            MenuStartPos.X.Scale, MenuStartPos.X.Offset + Delta.X,
+            MenuStartPos.Y.Scale, MenuStartPos.Y.Offset + Delta.Y
         )
     end
 end)
@@ -704,9 +754,7 @@ end)
 --========================================================--
 
 local Dragging = false
-local DragStart
-local StartPosition
-local HasMoved = false
+local DragStart, StartPosition, HasMoved = false
 
 Floating.InputBegan:Connect(function(Input)
     if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
@@ -724,10 +772,8 @@ UserInputService.InputChanged:Connect(function(Input)
         if Delta.Magnitude > 5 then
             HasMoved = true
             Floating.Position = UDim2.new(
-                StartPosition.X.Scale,
-                StartPosition.X.Offset + Delta.X,
-                StartPosition.Y.Scale,
-                StartPosition.Y.Offset + Delta.Y
+                StartPosition.X.Scale, StartPosition.X.Offset + Delta.X,
+                StartPosition.Y.Scale, StartPosition.Y.Offset + Delta.Y
             )
         end
     end
@@ -738,11 +784,7 @@ Floating.InputEnded:Connect(function(Input)
         if Dragging then
             Dragging = false
             if not HasMoved then
-                if MenuOpen then
-                    CloseMenu()
-                else
-                    OpenMenu()
-                end
+                if MenuOpen then CloseMenu() else OpenMenu() end
             end
         end
     end
@@ -753,4 +795,4 @@ end)
 --========================================================--
 
 ApplySpeed()
-print("Kiko Anime Steal carregado - Organização avançada ativada.")
+print("Kiko Anime Steal - Sistema de Bloqueio Automático ativado.")
