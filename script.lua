@@ -1,5 +1,5 @@
 --========================================================--
---     KIKO ANIME STEAL (V5 - FILTRO DE BASE PRÓPRIA)     --
+--     KIKO ANIME STEAL (V5.1 - CORREÇÃO DE DETECÇÃO)     --
 --========================================================--
 
 local Players = game:GetService("Players")
@@ -401,7 +401,6 @@ local function ParseValueString(str)
     return num * (multipliers[suffix] or 1)
 end
 
--- EXTRAI TANTO O VALOR QUANTO OS GANHOS POR SEGUNDO (/S)
 local function GetCharacterStats(Character)
     if not Character then return nil, nil, 0, 0 end
     
@@ -413,16 +412,10 @@ local function GetCharacterStats(Character)
             local text = Object.Text
             if text and text ~= "" then
                 local lowerText = string.lower(text)
-                -- Identifica ganhos por segundo (/s)
                 if string.find(lowerText, "/s") or string.find(lowerText, "/sec") then
-                    if not incomeStr then
-                        incomeStr = text
-                    end
-                -- Identifica valor normal (ex: 100M, $500K)
+                    if not incomeStr then incomeStr = text end
                 elseif string.match(text, "%d[%d%.]*[KkMmBbTt]?") then
-                    if not valueStr then
-                        valueStr = text
-                    end
+                    if not valueStr then valueStr = text end
                 end
             end
         end
@@ -434,34 +427,76 @@ local function GetCharacterStats(Character)
     return valueStr, incomeStr, rawValue, rawIncome
 end
 
+-- VERIFICAÇÃO SEGURA SE É O PRÓPRIO JOGADOR
 local function MatchesPlayer(text)
-    if not text then return false end
+    if not text or type(text) ~= "string" or text == "" then return false end
     local lower = string.lower(text)
-    local pName = string.lower(LocalPlayer.Name)
-    local pDisplay = string.lower(LocalPlayer.DisplayName)
-    return string.find(lower, pName, 1, true) ~= nil or string.find(lower, pDisplay, 1, true) ~= nil
+    local pName = LocalPlayer.Name and string.lower(LocalPlayer.Name) or ""
+    local pDisplay = LocalPlayer.DisplayName and string.lower(LocalPlayer.DisplayName) or ""
+    
+    if pName ~= "" and string.find(lower, pName, 1, true) ~= nil then
+        return true
+    end
+    if pDisplay ~= "" and string.find(lower, pDisplay, 1, true) ~= nil then
+        return true
+    end
+    return false
+end
+
+local function IsMyBase(Base)
+    if not Base then return false end
+    if MatchesPlayer(Base.Name) then return true end
+    
+    local ownerVal = Base:FindFirstChild("Owner") or Base:GetAttribute("Owner")
+    if ownerVal then
+        if type(ownerVal) == "string" and MatchesPlayer(ownerVal) then return true end
+        if typeof(ownerVal) == "Instance" and ownerVal == LocalPlayer then return true end
+    end
+
+    local Sign = Base:FindFirstChild("Sign")
+    if Sign then
+        local SignPart = Sign:FindFirstChild("SignPart")
+        if SignPart then
+            local SurfaceGui = SignPart:FindFirstChild("SurfaceGui")
+            if SurfaceGui then
+                local Label = SurfaceGui:FindFirstChild("TextLabel")
+                if Label and Label.Text and MatchesPlayer(Label.Text) then
+                    return true
+                end
+            end
+        end
+    end
+    return false
 end
 
 local function GetMyBase()
     local Bases = workspace:FindFirstChild("Bases")
     if Bases then
         for _, Base in ipairs(Bases:GetChildren()) do
-            local Sign = Base:FindFirstChild("Sign")
-            if Sign then
-                local SignPart = Sign:FindFirstChild("SignPart")
-                if SignPart then
-                    local SurfaceGui = SignPart:FindFirstChild("SurfaceGui")
-                    if SurfaceGui then
-                        local Label = SurfaceGui:FindFirstChild("TextLabel")
-                        if Label and MatchesPlayer(Label.Text) then
-                            return Base
-                        end
-                    end
-                end
+            if IsMyBase(Base) then
+                return Base
             end
         end
     end
     return nil
+end
+
+local function GetBaseName(Base)
+    local Sign = Base:FindFirstChild("Sign")
+    if Sign then
+        local SignPart = Sign:FindFirstChild("SignPart")
+        if SignPart then
+            local SurfaceGui = SignPart:FindFirstChild("SurfaceGui")
+            if SurfaceGui then
+                local Label = SurfaceGui:FindFirstChild("TextLabel")
+                if Label and Label.Text and Label.Text ~= "" then
+                    local name = string.match(Label.Text, "(.+)'s [Bb]ase") or Label.Text
+                    return name
+                end
+            end
+        end
+    end
+    return Base.Name
 end
 
 local function GetBaseHighestValue(Base)
@@ -469,15 +504,16 @@ local function GetBaseHighestValue(Base)
     local highestValStr = ""
     local highestIncStr = ""
 
-    local FolderNames = {"Characters", "RainbowCharacters", "CosmicCharacters"}
+    local FolderNames = {"Characters", "RainbowCharacters", "CosmicCharacters", "Animes", "Units"}
     for _, FolderName in ipairs(FolderNames) do
         local Folder = Base:FindFirstChild(FolderName)
         if Folder then
             for _, Character in ipairs(Folder:GetChildren()) do
                 if Character:IsA("Model") then
                     local valStr, incStr, rawVal, rawInc = GetCharacterStats(Character)
-                    if rawVal > highestValue then
-                        highestValue = rawVal
+                    local maxStat = math.max(rawVal, rawInc)
+                    if maxStat > highestValue then
+                        highestValue = maxStat
                         highestValStr = valStr or ""
                         highestIncStr = incStr or ""
                     end
@@ -493,7 +529,7 @@ end
 --========================================================--
 
 local function CheckExpensiveAnimes(baseName, baseObject)
-    local FolderNames = {"Characters", "RainbowCharacters", "CosmicCharacters"}
+    local FolderNames = {"Characters", "RainbowCharacters", "CosmicCharacters", "Animes", "Units"}
     for _, FolderName in ipairs(FolderNames) do
         local Folder = baseObject:FindFirstChild(FolderName)
         if Folder then
@@ -501,7 +537,6 @@ local function CheckExpensiveAnimes(baseName, baseObject)
                 if Character:IsA("Model") then
                     local valStr, incStr, rawVal, rawInc = GetCharacterStats(Character)
                     
-                    -- Se o valor ou os ganhos equivalerem a >= 100M
                     if rawVal >= 100000000 or rawInc >= 100000000 then
                         local charId = Character:GetDebugId()
                         if not DetectedExpensiveList[charId] then
@@ -526,39 +561,14 @@ local function CheckExpensiveAnimes(baseName, baseObject)
     end
 end
 
--- FILTRA AUTOMATICAMENTE A PRÓPRIA BASE PARA NÃO MOSTRAR NA LISTA NEM DISPARAR ALERTAS
 local function GetBases()
     local Result = {}
     local Bases = workspace:FindFirstChild("Bases")
     if not Bases then return Result end
 
     for _, Base in ipairs(Bases:GetChildren()) do
-        local PlayerName
-        local isMyBase = false
-        local Sign = Base:FindFirstChild("Sign")
-        if Sign then
-            local SignPart = Sign:FindFirstChild("SignPart")
-            if SignPart then
-                local SurfaceGui = SignPart:FindFirstChild("SurfaceGui")
-                if SurfaceGui then
-                    local Label = SurfaceGui:FindFirstChild("TextLabel")
-                    if Label then
-                        local Text = Label.Text
-                        if MatchesPlayer(Text) then
-                            isMyBase = true
-                        end
-                        PlayerName = string.match(Text, "(.+)'s [Bb]ase") or Text
-                    end
-                end
-            end
-        end
-
-        if PlayerName and MatchesPlayer(PlayerName) then
-            isMyBase = true
-        end
-
-        -- Apenas adiciona e verifica se NÃO for a base do próprio jogador
-        if PlayerName and PlayerName ~= "" and not isMyBase then
+        if not IsMyBase(Base) then
+            local PlayerName = GetBaseName(Base)
             local maxRaw, maxValStr, maxIncStr = GetBaseHighestValue(Base)
             
             CheckExpensiveAnimes(PlayerName, Base)
@@ -577,8 +587,8 @@ local function GetCharacters(Base)
     local Result = {}
     if not Base then return Result end
 
-    local FolderNames = {"Characters", "RainbowCharacters", "CosmicCharacters"}
-    for _, FolderName in ipairs(FolderName) do
+    local FolderNames = {"Characters", "RainbowCharacters", "CosmicCharacters", "Animes", "Units"}
+    for _, FolderName in ipairs(FolderNames) do
         local Folder = Base:FindFirstChild(FolderName)
         if Folder then
             for _, Character in ipairs(Folder:GetChildren()) do
@@ -683,7 +693,7 @@ end
 -- Scan em segundo plano
 task.spawn(function()
     while true do
-        task.wait(10)
+        task.wait(5)
         pcall(function() GetBases() end)
     end
 end)
@@ -1004,4 +1014,4 @@ end)
 --========================================================--
 
 ApplySpeed()
-Notify("KIKO ANIME STEAL V5", "Sua base foi removida das listas e notificações com sucesso!", 5, CONFIG.Success)
+Notify("KIKO ANIME STEAL V5.1", "Detecção corrigida! Bases de terceiros e animes raros ativos.", 5, CONFIG.Success)
