@@ -782,7 +782,7 @@ ServerHopButton.MouseButton1Click:Connect(function()
     end
 end)
 
--- STEAL COM TIMEOUT / RECONTAGEM
+-- STEAL COM TIMEOUT / RECONTAGEM DINÂMICA (AUTO-DETECT)
 StealButton.MouseButton1Click:Connect(function()
     PlaySound(SOUNDS.Click, 0.5)
     if not SelectedBase then
@@ -836,15 +836,39 @@ StealButton.MouseButton1Click:Connect(function()
         end
     end)
 
-    local totalWait = 6
+    -- === NOVO SISTEMA DE DETECÇÃO INSTANTÂNEA ===
+    local timeout = 6
+    local tickRate = 0.1
+    local timeWaited = 0
+    local isStealing = true -- Variável para controlar a notificação
+
+    -- Notificação em paralelo (para se o anime for pego antes)
     task.spawn(function()
-        for i = totalWait, 1, -1 do
-            Notify("⚡ ROUBANDO ANIME...", "Aguarde " .. i .. "s para o retorno automático!", 1, CONFIG.Warning)
+        for i = timeout, 1, -1 do
+            if not isStealing then break end -- Corta a notificação se já pegou o anime
+            Notify("⚡ ROUBANDO ANIME...", "Aguarde " .. i .. "s ou até coletar!", 1, CONFIG.Warning)
             task.wait(1)
         end
     end)
 
-    task.wait(totalWait)
+    -- Loop de verificação (Roda a cada 0.1s para teleportar instantaneamente)
+    while timeWaited < timeout do
+        -- Checa se o anime está na sua mão (ferramenta equipada)
+        local hasToolInHand = Character:FindFirstChildOfClass("Tool")
+        
+        -- Checa se o anime sumiu da base inimiga (foi coletado)
+        local targetGone = (not SelectedCharacter or not SelectedCharacter.Parent)
+
+        if hasToolInHand or targetGone then
+            break -- Sai do loop imediatamente e vai para o teleporte
+        end
+
+        task.wait(tickRate)
+        timeWaited = timeWaited + tickRate
+    end
+
+    isStealing = false -- Avisa o loop de notificação para parar
+    -- ============================================
 
     local MyBase = GetMyBase()
     if MyBase then
@@ -874,7 +898,6 @@ StealButton.MouseButton1Click:Connect(function()
     PlaySound(SOUNDS.StealSuccess, 0.8)
     Notify("STEAL CONCLUÍDO!", "Você foi teleportado de volta com sucesso!", 4, CONFIG.Success)
 end)
-
 --========================================================--
 -- ANIMAÇÕES DO MENU
 --========================================================--
