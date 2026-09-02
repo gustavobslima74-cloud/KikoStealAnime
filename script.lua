@@ -1,5 +1,5 @@
 --========================================================--
---     KIKO ANIME STEAL (V5 - AUTO-E FIX + DRAGGABLE)     --
+--  KIKO ANIME STEAL (V6 - DRAGGABLE + AUTO COLLECT CASH) --
 --========================================================--
 
 local Players = game:GetService("Players")
@@ -211,12 +211,11 @@ FloatingStroke.Color = CONFIG.Accent
 FloatingStroke.Thickness = 2
 FloatingStroke.Parent = Floating
 
--- SISTEMA DE ARRASTE (DRAG) PARA O BOTÃO FLUTUANTE
 local dragging
 local dragInput
 local dragStart
 local startPos
-local isDraggingAction = false -- Evita clicar sem querer ao arrastar
+local isDraggingAction = false 
 
 Floating.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -287,9 +286,7 @@ Header.BorderSizePixel = 0
 Header.ZIndex = 101
 Header.Parent = MenuContainer
 
-local HeaderCorner = Instance.new("UICorner")
-HeaderCorner.CornerRadius = UDim.new(0, 10)
-HeaderCorner.Parent = Header
+Instance.new("UICorner", Header).CornerRadius = UDim.new(0, 10)
 
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -50, 1, 0)
@@ -343,9 +340,7 @@ local function CreateButton(Text, Y)
     Button.ZIndex = 102
     Button.Parent = Content
 
-    local Corner = Instance.new("UICorner")
-    Corner.CornerRadius = UDim.new(0, 7)
-    Corner.Parent = Button
+    Instance.new("UICorner", Button).CornerRadius = UDim.new(0, 7)
 
     local Stroke = Instance.new("UIStroke")
     Stroke.Color = CONFIG.Accent
@@ -403,9 +398,10 @@ local CharacterLayout = Instance.new("UIListLayout")
 CharacterLayout.Padding = UDim.new(0, 1)
 CharacterLayout.Parent = CharacterList
 
+-- BOTÕES RESTANTES
 local StealButton = CreateButton("⚡ STEAL", 92)
 local TimeoutButton = CreateButton("⏱️ TEMPO DE ESPERA: 5s", 138)
-local AutoEButton = CreateButton("🖐️ AUTO 'E' (ROUBO): OFF", 184)
+local AutoCollectButton = CreateButton("💰 AUTO COLLECT CASH: OFF", 184)
 local SpeedButton = CreateButton("⚡ SPEED: 36 | ON", 230)
 local RejoinButton = CreateButton("↻ REJOIN SERVER", 276)
 local ServerHopButton = CreateButton("🌐 MUDAR DE SERVIDOR", 322)
@@ -419,20 +415,16 @@ local SelectedCharacter = nil
 local MenuOpen = false
 local SpeedEnabled = true
 local DetectedExpensiveList = {}
-
--- CONFIGURAÇÕES DE STEAL
 local StealTimeout = 5
-local AutoInteractE = false
+local AutoCollectCash = false
 
 --========================================================--
--- FUNÇÕES DE SUPORTE E PARSER DE VALORES
+-- FUNÇÕES DE SUPORTE
 --========================================================--
 
 local function ClearList(List)
     for _, Object in ipairs(List:GetChildren()) do
-        if Object:IsA("TextButton") then
-            Object:Destroy()
-        end
+        if Object:IsA("TextButton") then Object:Destroy() end
     end
 end
 
@@ -449,28 +441,20 @@ local function ParseValueString(str)
     return num * (multipliers[suffix] or 1)
 end
 
--- EXTRAI TANTO O VALOR QUANTO OS GANHOS POR SEGUNDO (/S)
 local function GetCharacterStats(Character)
     if not Character then return nil, nil, 0, 0 end
     
-    local valueStr = nil
-    local incomeStr = nil
+    local valueStr, incomeStr = nil, nil
     
     for _, Object in ipairs(Character:GetDescendants()) do
         if Object:IsA("TextLabel") or Object:IsA("TextButton") then
             local text = Object.Text
             if text and text ~= "" then
                 local lowerText = string.lower(text)
-                -- Identifica ganhos por segundo (/s)
                 if string.find(lowerText, "/s") or string.find(lowerText, "/sec") then
-                    if not incomeStr then
-                        incomeStr = text
-                    end
-                -- Identifica valor normal (ex: 100M, $500K)
+                    if not incomeStr then incomeStr = text end
                 elseif string.match(text, "%d[%d%.]*[KkMmBbTt]?") then
-                    if not valueStr then
-                        valueStr = text
-                    end
+                    if not valueStr then valueStr = text end
                 end
             end
         end
@@ -478,7 +462,6 @@ local function GetCharacterStats(Character)
     
     local rawValue = ParseValueString(valueStr)
     local rawIncome = ParseValueString(incomeStr)
-    
     return valueStr, incomeStr, rawValue, rawIncome
 end
 
@@ -536,10 +519,6 @@ local function GetBaseHighestValue(Base)
     return highestValue, highestValStr, highestIncStr
 end
 
---========================================================--
--- DETECÇÃO DE ANIME CARO (100M+)
---========================================================--
-
 local function CheckExpensiveAnimes(baseName, baseObject)
     local FolderNames = {"Characters", "RainbowCharacters", "CosmicCharacters"}
     for _, FolderName in ipairs(FolderNames) do
@@ -548,23 +527,14 @@ local function CheckExpensiveAnimes(baseName, baseObject)
             for _, Character in ipairs(Folder:GetChildren()) do
                 if Character:IsA("Model") then
                     local valStr, incStr, rawVal, rawInc = GetCharacterStats(Character)
-                    
                     if rawVal >= 100000000 or rawInc >= 100000000 then
                         local charId = Character:GetDebugId()
                         if not DetectedExpensiveList[charId] then
                             DetectedExpensiveList[charId] = true
-
                             local detailText = "Base: " .. baseName .. "\nItem: " .. Character.Name
                             if valStr then detailText = detailText .. "\nValor: " .. valStr end
                             if incStr then detailText = detailText .. " (" .. incStr .. ")" end
-
-                            Notify(
-                                "🔥 ANIME RARO ENCONTRADO!",
-                                detailText,
-                                7,
-                                CONFIG.AccentGold,
-                                SOUNDS.RareFound
-                            )
+                            Notify("🔥 ANIME RARO ENCONTRADO!", detailText, 7, CONFIG.AccentGold, SOUNDS.RareFound)
                         end
                     end
                 end
@@ -598,7 +568,6 @@ local function GetBases()
         if PlayerName and PlayerName ~= "" then
             local maxRaw, maxValStr, maxIncStr = GetBaseHighestValue(Base)
             CheckExpensiveAnimes(PlayerName, Base)
-
             table.insert(Result, {
                 Object = Base, Name = PlayerName,
                 HighestRaw = maxRaw, HighestValStr = maxValStr, HighestIncStr = maxIncStr
@@ -639,13 +608,9 @@ local function UpdateBases()
     for _, Data in ipairs(Bases) do
         local DisplayName = Data.Name
         local tagParts = {}
-
         if Data.HighestValStr ~= "" then table.insert(tagParts, Data.HighestValStr) end
         if Data.HighestIncStr ~= "" then table.insert(tagParts, Data.HighestIncStr) end
-
-        if #tagParts > 0 then
-            DisplayName = DisplayName .. "  [" .. table.concat(tagParts, " | ") .. "]"
-        end
+        if #tagParts > 0 then DisplayName = DisplayName .. "  [" .. table.concat(tagParts, " | ") .. "]" end
 
         local Button = Instance.new("TextButton")
         Button.Size = UDim2.new(1, -4, 0, 28)
@@ -683,13 +648,9 @@ local function UpdateCharacters()
     for _, Data in ipairs(Characters) do
         local DisplayName = Data.Name
         local tagParts = {}
-
         if Data.ValueStr then table.insert(tagParts, "Val: " .. Data.ValueStr) end
         if Data.IncomeStr then table.insert(tagParts, Data.IncomeStr) end
-
-        if #tagParts > 0 then
-            DisplayName = DisplayName .. "  [" .. table.concat(tagParts, " | ") .. "]"
-        end
+        if #tagParts > 0 then DisplayName = DisplayName .. "  [" .. table.concat(tagParts, " | ") .. "]" end
 
         local Button = Instance.new("TextButton")
         Button.Size = UDim2.new(1, -4, 0, 28)
@@ -724,7 +685,51 @@ task.spawn(function()
 end)
 
 --========================================================--
--- LÓGICA DE AÇÕES
+-- LOOP DE AUTO COLLECT CASH
+--========================================================--
+
+task.spawn(function()
+    while true do
+        task.wait(1)
+        if AutoCollectCash and firetouchinterest then
+            local character = LocalPlayer.Character
+            local hrp = character and character:FindFirstChild("HumanoidRootPart")
+            local MyBase = GetMyBase()
+            
+            if hrp and MyBase then
+                -- Procura componentes 'TouchTransmitter' (Pads de contato) dentro da sua base
+                for _, obj in ipairs(MyBase:GetDescendants()) do
+                    if obj:IsA("TouchTransmitter") then
+                        local part = obj.Parent
+                        if part and part:IsA("BasePart") then
+                            local name = string.lower(part.Name)
+                            local parentName = part.Parent and string.lower(part.Parent.Name) or ""
+                            
+                            -- Confirma se é de dinheiro
+                            local isCash = string.find(name, "collect") or string.find(name, "giver") or string.find(name, "cash") or string.find(name, "money") or string.find(name, "claim") or string.find(name, "income")
+                                        or string.find(parentName, "collect") or string.find(parentName, "giver") or string.find(parentName, "cash") or string.find(parentName, "money")
+                                        
+                            -- Evita comprar droppers/upgrades que gastem seu dinheiro
+                            local isUpgrade = string.find(name, "buy") or string.find(name, "upgrade") or string.find(name, "purchase")
+                                           or string.find(parentName, "buy") or string.find(parentName, "upgrade")
+                            
+                            if isCash and not isUpgrade then
+                                pcall(function()
+                                    firetouchinterest(hrp, part, 0)
+                                    task.wait(0.01)
+                                    firetouchinterest(hrp, part, 1)
+                                end)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+--========================================================--
+-- LÓGICA DE AÇÕES DOS BOTÕES
 --========================================================--
 
 BaseButton.MouseButton1Click:Connect(function()
@@ -736,10 +741,7 @@ end)
 
 CharacterButton.MouseButton1Click:Connect(function()
     PlaySound(SOUNDS.Click, 0.5)
-    if not SelectedBase then
-        Notify("Aviso", "Selecione uma base primeiro!", 3, CONFIG.Warning)
-        return
-    end
+    if not SelectedBase then return Notify("Aviso", "Selecione uma base primeiro!", 3, CONFIG.Warning) end
     BaseList.Visible = false
     CharacterList.Visible = not CharacterList.Visible
     if CharacterList.Visible then UpdateCharacters() end
@@ -756,16 +758,16 @@ TimeoutButton.MouseButton1Click:Connect(function()
     end
 end)
 
-AutoEButton.MouseButton1Click:Connect(function()
+AutoCollectButton.MouseButton1Click:Connect(function()
     PlaySound(SOUNDS.Click, 0.5)
-    AutoInteractE = not AutoInteractE
+    AutoCollectCash = not AutoCollectCash
     
-    if AutoInteractE then
-        AutoEButton.Text = "🖐️ AUTO 'E' (ROUBO): ON"
-        Notify("Auto 'E' Ligado", "O script vai segurar E automaticamente!", 3, CONFIG.Success)
+    if AutoCollectCash then
+        AutoCollectButton.Text = "💰 AUTO COLLECT CASH: ON"
+        Notify("Auto Collect", "Coletando dinheiro na sua base...", 3, CONFIG.Success)
     else
-        AutoEButton.Text = "🖐️ AUTO 'E' (ROUBO): OFF"
-        Notify("Auto 'E' Desligado", "Você precisará segurar o 'E' manualmente.", 3, CONFIG.Warning)
+        AutoCollectButton.Text = "💰 AUTO COLLECT CASH: OFF"
+        Notify("Auto Collect", "Coleta desativada.", 3, CONFIG.Warning)
     end
 end)
 
@@ -810,29 +812,22 @@ end)
 
 RejoinButton.MouseButton1Click:Connect(function()
     PlaySound(SOUNDS.Click, 0.5)
-    Notify("Reconectando...", "Conectando ao mesmo servidor novamente", 4, CONFIG.Info)
+    Notify("Reconectando...", "Conectando ao mesmo servidor...", 4, CONFIG.Info)
     task.wait(0.5)
     TeleportService:Teleport(game.PlaceId, LocalPlayer)
 end)
 
 ServerHopButton.MouseButton1Click:Connect(function()
     PlaySound(SOUNDS.Click, 0.5)
-    Notify("Mudar de Servidor", "Buscando servidores disponíveis...", 3, CONFIG.Info)
+    Notify("Mudar de Servidor", "Buscando servidores...", 3, CONFIG.Info)
 
     local Success, Response = pcall(function()
         return game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Desc&limit=100")
     end)
 
-    if not Success then
-        Notify("Erro", "Falha ao carregar a lista de servidores.", 4, CONFIG.Danger)
-        return
-    end
-
+    if not Success then return Notify("Erro", "Falha ao carregar lista.", 4, CONFIG.Danger) end
     local SuccessDecode, Data = pcall(function() return HttpService:JSONDecode(Response) end)
-    if not SuccessDecode or not Data then
-        Notify("Erro", "Erro ao processar dados dos servidores.", 4, CONFIG.Danger)
-        return
-    end
+    if not SuccessDecode or not Data then return Notify("Erro", "Erro ao processar dados.", 4, CONFIG.Danger) end
 
     local Available = {}
     for _, Server in ipairs(Data.data or {}) do
@@ -843,28 +838,22 @@ ServerHopButton.MouseButton1Click:Connect(function()
 
     if #Available > 0 then
         local ServerId = Available[math.random(1, #Available)]
-        Notify("Servidor Encontrado!", "Entrando no novo servidor...", 4, CONFIG.Success)
+        Notify("Servidor Encontrado!", "Entrando...", 4, CONFIG.Success)
         task.wait(0.5)
         TeleportService:TeleportToPlaceInstance(game.PlaceId, ServerId, LocalPlayer)
     else
-        Notify("Servidores Cheios", "Nenhum servidor com vaga encontrado no momento.", 4, CONFIG.Warning)
+        Notify("Servidores Cheios", "Nenhuma vaga no momento.", 4, CONFIG.Warning)
     end
 end)
 
 --========================================================--
--- STEAL LOGIC (FIXADO COM SEGURAR E SEM SPAM)
+-- STEAL LOGIC LIMPADO E SIMPLIFICADO
 --========================================================--
 
 StealButton.MouseButton1Click:Connect(function()
     PlaySound(SOUNDS.Click, 0.5)
-    if not SelectedBase then
-        Notify("Aviso", "Selecione uma base!", 3, CONFIG.Warning)
-        return
-    end
-    if not SelectedCharacter then
-        Notify("Aviso", "Selecione um personagem!", 3, CONFIG.Warning)
-        return
-    end
+    if not SelectedBase then return Notify("Aviso", "Selecione uma base!", 3, CONFIG.Warning) end
+    if not SelectedCharacter then return Notify("Aviso", "Selecione um personagem!", 3, CONFIG.Warning) end
 
     local Character = LocalPlayer.Character
     if not Character then return end
@@ -873,10 +862,7 @@ StealButton.MouseButton1Click:Connect(function()
     local Humanoid = Character:FindFirstChildOfClass("Humanoid")
     local TargetHRP = SelectedCharacter:FindFirstChild("HumanoidRootPart")
 
-    if not HRP or not Humanoid or not TargetHRP then
-        Notify("Erro", "Não foi possível localizar o alvo.", 3, CONFIG.Danger)
-        return
-    end
+    if not HRP or not Humanoid or not TargetHRP then return Notify("Erro", "Alvo não localizado.", 3, CONFIG.Danger) end
 
     PlaySound(SOUNDS.StealStart, 0.8)
     local OldCFrame = HRP.CFrame
@@ -908,39 +894,19 @@ StealButton.MouseButton1Click:Connect(function()
         end
     end)
 
-    -- === DETECÇÃO E AUTO-E FIXO (SEGURAR) ===
-    local tickRate = 0.1
+    local tickRate = 0.2
     local timeWaited = 0
     local isStealing = true
-    local promptApertado = false 
 
     task.spawn(function()
         for i = StealTimeout, 1, -1 do
             if not isStealing then break end
-            Notify("⚡ ROUBANDO...", "Aguarde " .. i .. "s ou até coletar!", 1, CONFIG.Warning)
+            Notify("⚡ ROUBANDO...", "Segure 'E' no alvo! Voltando em " .. i .. "s", 1, CONFIG.Warning)
             task.wait(1)
         end
     end)
 
     while timeWaited < StealTimeout do
-        if AutoInteractE and not promptApertado and SelectedCharacter then
-            for _, item in ipairs(SelectedCharacter:GetDescendants()) do
-                if item:IsA("ProximityPrompt") then
-                    promptApertado = true
-                    pcall(function()
-                        item.RequiresLineOfSight = false
-                        item.MaxActivationDistance = 99999
-                        
-                        if fireproximityprompt then
-                            task.spawn(function() pcall(function() fireproximityprompt(item, 1, true) end) end)
-                        end
-                        
-                        item:InputHoldBegin()
-                    end)
-                end
-            end
-        end
-
         local hasToolInHand = Character:FindFirstChildOfClass("Tool")
         local targetGone = (not SelectedCharacter or not SelectedCharacter.Parent)
 
@@ -952,16 +918,7 @@ StealButton.MouseButton1Click:Connect(function()
         timeWaited = timeWaited + tickRate
     end
 
-    if promptApertado and SelectedCharacter then
-        for _, item in ipairs(SelectedCharacter:GetDescendants()) do
-            if item:IsA("ProximityPrompt") then
-                pcall(function() item:InputHoldEnd() end)
-            end
-        end
-    end
-
     isStealing = false 
-    -- ========================================
 
     local MyBase = GetMyBase()
     if MyBase then
@@ -1003,8 +960,7 @@ local function OpenMenu()
     MenuContainer.Size = UDim2.new(0, 280, 0, 390)
     MenuContainer.GroupTransparency = 1
 
-    local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
-    TweenService:Create(MenuContainer, tweenInfo, {
+    TweenService:Create(MenuContainer, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
         GroupTransparency = 0,
         Size = UDim2.new(0, 280, 0, 440)
     }):Play()
@@ -1016,40 +972,25 @@ local function CloseMenu()
     BaseList.Visible = false
     CharacterList.Visible = false
 
-    local tweenInfo = TweenInfo.new(0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
-    TweenService:Create(MenuContainer, tweenInfo, {
+    TweenService:Create(MenuContainer, TweenInfo.new(0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {
         GroupTransparency = 1,
         Size = UDim2.new(0, 280, 0, 390)
     }):Play()
 
-    task.delay(0.25, function()
-        if not MenuOpen then
-            MenuContainer.Visible = false
-        end
-    end)
+    task.delay(0.25, function() if not MenuOpen then MenuContainer.Visible = false end end)
 end
 
 Close.MouseButton1Click:Connect(CloseMenu)
 
--- Abre o menu se houver um clique no botão flutuante e NÃO for um arrasto
 Floating.MouseButton1Click:Connect(function()
     if not isDraggingAction then
-        if MenuOpen then
-            CloseMenu()
-        else
-            OpenMenu()
-        end
+        if MenuOpen then CloseMenu() else OpenMenu() end
     end
 end)
 
--- ABRIR/FECHAR COM A TECLA "K"
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     if input.KeyCode == Enum.KeyCode.K then
-        if MenuOpen then
-            CloseMenu()
-        else
-            OpenMenu()
-        end
+        if MenuOpen then CloseMenu() else OpenMenu() end
     end
 end)
