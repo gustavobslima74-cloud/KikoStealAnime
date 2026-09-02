@@ -1,5 +1,5 @@
 --========================================================--
---  KIKO ANIME STEAL (V6 - DRAGGABLE + AUTO COLLECT CASH) --
+--  KIKO ANIME STEAL (V7 - AUTO COLLECT & AUTO LOCK)      --
 --========================================================--
 
 local Players = game:GetService("Players")
@@ -211,10 +211,7 @@ FloatingStroke.Color = CONFIG.Accent
 FloatingStroke.Thickness = 2
 FloatingStroke.Parent = Floating
 
-local dragging
-local dragInput
-local dragStart
-local startPos
+local dragging, dragInput, dragStart, startPos
 local isDraggingAction = false 
 
 Floating.InputBegan:Connect(function(input)
@@ -257,7 +254,7 @@ end)
 
 local MenuContainer = Instance.new("CanvasGroup")
 MenuContainer.Name = "MainMenu"
-MenuContainer.Size = UDim2.new(0, 280, 0, 440)
+MenuContainer.Size = UDim2.new(0, 280, 0, 470)
 MenuContainer.Position = UDim2.new(0.85, -140, 0.35, -175)
 MenuContainer.BackgroundColor3 = CONFIG.Background
 MenuContainer.BorderSizePixel = 0
@@ -402,9 +399,10 @@ CharacterLayout.Parent = CharacterList
 local StealButton = CreateButton("⚡ STEAL", 92)
 local TimeoutButton = CreateButton("⏱️ TEMPO DE ESPERA: 5s", 138)
 local AutoCollectButton = CreateButton("💰 AUTO COLLECT CASH: OFF", 184)
-local SpeedButton = CreateButton("⚡ SPEED: 36 | ON", 230)
-local RejoinButton = CreateButton("↻ REJOIN SERVER", 276)
-local ServerHopButton = CreateButton("🌐 MUDAR DE SERVIDOR", 322)
+local AutoLockButton = CreateButton("🔒 AUTO LOCK BASE: OFF", 230)
+local SpeedButton = CreateButton("⚡ SPEED: 36 | ON", 276)
+local RejoinButton = CreateButton("↻ REJOIN SERVER", 322)
+local ServerHopButton = CreateButton("🌐 MUDAR DE SERVIDOR", 368)
 
 --========================================================--
 -- VARIÁVEIS DE ESTADO
@@ -417,6 +415,7 @@ local SpeedEnabled = true
 local DetectedExpensiveList = {}
 local StealTimeout = 5
 local AutoCollectCash = false
+local AutoLockBase = false
 
 --========================================================--
 -- FUNÇÕES DE SUPORTE
@@ -443,7 +442,6 @@ end
 
 local function GetCharacterStats(Character)
     if not Character then return nil, nil, 0, 0 end
-    
     local valueStr, incomeStr = nil, nil
     
     for _, Object in ipairs(Character:GetDescendants()) do
@@ -499,7 +497,6 @@ local function GetBaseHighestValue(Base)
     local highestValue = 0
     local highestValStr = ""
     local highestIncStr = ""
-
     local FolderNames = {"Characters", "RainbowCharacters", "CosmicCharacters"}
     for _, FolderName in ipairs(FolderNames) do
         local Folder = Base:FindFirstChild(FolderName)
@@ -581,7 +578,6 @@ end
 local function GetCharacters(Base)
     local Result = {}
     if not Base then return Result end
-
     local FolderNames = {"Characters", "RainbowCharacters", "CosmicCharacters"}
     for _, FolderName in ipairs(FolderNames) do
         local Folder = Base:FindFirstChild(FolderName)
@@ -643,7 +639,6 @@ end
 local function UpdateCharacters()
     ClearList(CharacterList)
     if not SelectedBase then return end
-
     local Characters = GetCharacters(SelectedBase)
     for _, Data in ipairs(Characters) do
         local DisplayName = Data.Name
@@ -685,19 +680,20 @@ task.spawn(function()
 end)
 
 --========================================================--
--- LOOP DE AUTO COLLECT CASH
+-- LOOP: AUTO COLLECT & AUTO LOCK
 --========================================================--
 
 task.spawn(function()
     while true do
         task.wait(1)
-        if AutoCollectCash and firetouchinterest then
-            local character = LocalPlayer.Character
-            local hrp = character and character:FindFirstChild("HumanoidRootPart")
-            local MyBase = GetMyBase()
-            
-            if hrp and MyBase then
-                -- Procura componentes 'TouchTransmitter' (Pads de contato) dentro da sua base
+        
+        local character = LocalPlayer.Character
+        local hrp = character and character:FindFirstChild("HumanoidRootPart")
+        local MyBase = GetMyBase()
+        
+        if hrp and MyBase then
+            -- LOGICA AUTO COLLECT CASH
+            if AutoCollectCash and firetouchinterest then
                 for _, obj in ipairs(MyBase:GetDescendants()) do
                     if obj:IsA("TouchTransmitter") then
                         local part = obj.Parent
@@ -705,11 +701,9 @@ task.spawn(function()
                             local name = string.lower(part.Name)
                             local parentName = part.Parent and string.lower(part.Parent.Name) or ""
                             
-                            -- Confirma se é de dinheiro
                             local isCash = string.find(name, "collect") or string.find(name, "giver") or string.find(name, "cash") or string.find(name, "money") or string.find(name, "claim") or string.find(name, "income")
                                         or string.find(parentName, "collect") or string.find(parentName, "giver") or string.find(parentName, "cash") or string.find(parentName, "money")
                                         
-                            -- Evita comprar droppers/upgrades que gastem seu dinheiro
                             local isUpgrade = string.find(name, "buy") or string.find(name, "upgrade") or string.find(name, "purchase")
                                            or string.find(parentName, "buy") or string.find(parentName, "upgrade")
                             
@@ -720,6 +714,48 @@ task.spawn(function()
                                     firetouchinterest(hrp, part, 1)
                                 end)
                             end
+                        end
+                    end
+                end
+            end
+
+            -- LOGICA AUTO LOCK BASE
+            if AutoLockBase then
+                for _, obj in ipairs(MyBase:GetDescendants()) do
+                    local shouldTrigger = false
+                    
+                    -- Verifica se o nome do objeto tem "Lock" (Trancar), mas ignora "Unlock" (Destrancar)
+                    local name = string.lower(obj.Name)
+                    if string.find(name, "lock") and not string.find(name, "unlock") then
+                        shouldTrigger = true
+                    end
+                    
+                    -- Verifica se há um texto dizendo "Lock"
+                    if obj:IsA("TextLabel") or obj:IsA("TextButton") then
+                        local text = string.lower(obj.Text)
+                        if (string.find(text, "lock") or string.find(text, "trancar")) and not string.find(text, "unlock") then
+                            shouldTrigger = true
+                            obj = obj.Parent -- Subir um nível para achar o clicker
+                        end
+                    end
+
+                    if shouldTrigger then
+                        local touch = obj:FindFirstChildOfClass("TouchTransmitter") or (obj.Parent and obj.Parent:FindFirstChildOfClass("TouchTransmitter"))
+                        local click = obj:FindFirstChildOfClass("ClickDetector") or (obj.Parent and obj.Parent:FindFirstChildOfClass("ClickDetector"))
+                        local prompt = obj:FindFirstChildOfClass("ProximityPrompt") or (obj.Parent and obj.Parent:FindFirstChildOfClass("ProximityPrompt"))
+                        
+                        if touch and firetouchinterest then
+                            pcall(function()
+                                firetouchinterest(hrp, touch.Parent, 0)
+                                task.wait(0.01)
+                                firetouchinterest(hrp, touch.Parent, 1)
+                            end)
+                        end
+                        if click and fireclickdetector then 
+                            pcall(function() fireclickdetector(click) end) 
+                        end
+                        if prompt and fireproximityprompt then 
+                            pcall(function() fireproximityprompt(prompt) end) 
                         end
                     end
                 end
@@ -761,13 +797,24 @@ end)
 AutoCollectButton.MouseButton1Click:Connect(function()
     PlaySound(SOUNDS.Click, 0.5)
     AutoCollectCash = not AutoCollectCash
-    
     if AutoCollectCash then
         AutoCollectButton.Text = "💰 AUTO COLLECT CASH: ON"
         Notify("Auto Collect", "Coletando dinheiro na sua base...", 3, CONFIG.Success)
     else
         AutoCollectButton.Text = "💰 AUTO COLLECT CASH: OFF"
         Notify("Auto Collect", "Coleta desativada.", 3, CONFIG.Warning)
+    end
+end)
+
+AutoLockButton.MouseButton1Click:Connect(function()
+    PlaySound(SOUNDS.Click, 0.5)
+    AutoLockBase = not AutoLockBase
+    if AutoLockBase then
+        AutoLockButton.Text = "🔒 AUTO LOCK BASE: ON"
+        Notify("Auto Lock", "Sua base ficará trancada automaticamente.", 3, CONFIG.Success)
+    else
+        AutoLockButton.Text = "🔒 AUTO LOCK BASE: OFF"
+        Notify("Auto Lock", "Auto Lock desativado.", 3, CONFIG.Warning)
     end
 end)
 
@@ -847,7 +894,7 @@ ServerHopButton.MouseButton1Click:Connect(function()
 end)
 
 --========================================================--
--- STEAL LOGIC LIMPADO E SIMPLIFICADO
+-- STEAL LOGIC
 --========================================================--
 
 StealButton.MouseButton1Click:Connect(function()
@@ -910,10 +957,7 @@ StealButton.MouseButton1Click:Connect(function()
         local hasToolInHand = Character:FindFirstChildOfClass("Tool")
         local targetGone = (not SelectedCharacter or not SelectedCharacter.Parent)
 
-        if hasToolInHand or targetGone then
-            break
-        end
-
+        if hasToolInHand or targetGone then break end
         task.wait(tickRate)
         timeWaited = timeWaited + tickRate
     end
@@ -957,12 +1001,12 @@ local function OpenMenu()
     PlaySound(SOUNDS.Open, 0.5)
     MenuOpen = true
     MenuContainer.Visible = true
-    MenuContainer.Size = UDim2.new(0, 280, 0, 390)
+    MenuContainer.Size = UDim2.new(0, 280, 0, 420)
     MenuContainer.GroupTransparency = 1
 
     TweenService:Create(MenuContainer, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
         GroupTransparency = 0,
-        Size = UDim2.new(0, 280, 0, 440)
+        Size = UDim2.new(0, 280, 0, 470)
     }):Play()
 end
 
@@ -974,7 +1018,7 @@ local function CloseMenu()
 
     TweenService:Create(MenuContainer, TweenInfo.new(0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {
         GroupTransparency = 1,
-        Size = UDim2.new(0, 280, 0, 390)
+        Size = UDim2.new(0, 280, 0, 420)
     }):Play()
 
     task.delay(0.25, function() if not MenuOpen then MenuContainer.Visible = false end end)
