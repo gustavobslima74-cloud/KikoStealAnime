@@ -881,12 +881,17 @@ StealButton.MouseButton1Click:Connect(function()
         end
     end)
 
-    while timeWaited < StealTimeout do
-        -- DISPARA O E INVISÍVEL
+while timeWaited < StealTimeout do
+        -- DISPARA O 'E' APENAS NO PROMPT CORRETO (FILTRO DE SEGURANÇA)
         if AutoInteractE and SelectedCharacter then
             for _, item in ipairs(SelectedCharacter:GetDescendants()) do
                 if item:IsA("ProximityPrompt") then
-                    pcall(function() fireproximityprompt(item, 1, true) end)
+                    local action = string.lower(item.ActionText or "")
+                    
+                    -- Só ativa se a ação for de roubar/pegar (Ignora botões de Robux/Desbloquear)
+                    if string.find(action, "roubar") or string.find(action, "steal") or string.find(action, "collect") or string.find(action, "coletar") or string.find(action, "pegar") then
+                        pcall(function() fireproximityprompt(item, 1, true) end)
+                    end
                 end
             end
         end
@@ -901,8 +906,6 @@ StealButton.MouseButton1Click:Connect(function()
         task.wait(tickRate)
         timeWaited = timeWaited + tickRate
     end
-
-    isStealing = false 
     -- ===========================
 
     local MyBase = GetMyBase()
