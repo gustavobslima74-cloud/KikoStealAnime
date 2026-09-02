@@ -882,16 +882,26 @@ StealButton.MouseButton1Click:Connect(function()
     end)
 
 while timeWaited < StealTimeout do
-        -- DISPARA O 'E' APENAS NO PROMPT CORRETO (FILTRO DE SEGURANÇA)
+        -- AUTO-E FORÇADO (Bypass de distância e tempo)
         if AutoInteractE and SelectedCharacter then
             for _, item in ipairs(SelectedCharacter:GetDescendants()) do
                 if item:IsA("ProximityPrompt") then
-                    local action = string.lower(item.ActionText or "")
-                    
-                    -- Só ativa se a ação for de roubar/pegar (Ignora botões de Robux/Desbloquear)
-                    if string.find(action, "roubar") or string.find(action, "steal") or string.find(action, "collect") or string.find(action, "coletar") or string.find(action, "pegar") then
-                        pcall(function() fireproximityprompt(item, 1, true) end)
-                    end
+                    pcall(function()
+                        -- Remove as restrições físicas do botão
+                        item.HoldDuration = 0
+                        item.RequiresLineOfSight = false
+                        item.MaxActivationDistance = 99999
+                        
+                        -- Método 1: Executor
+                        if fireproximityprompt then
+                            fireproximityprompt(item)
+                        end
+                        
+                        -- Método 2: Fallback nativo do Roblox (caso o executor falhe)
+                        item:InputHoldBegin()
+                        task.wait(0.05)
+                        item:InputHoldEnd()
+                    end)
                 end
             end
         end
