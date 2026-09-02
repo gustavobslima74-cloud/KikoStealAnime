@@ -1,5 +1,5 @@
 --========================================================--
---      KIKO ANIME STEAL (V4 - VALOR + GANHOS POR /S)      --
+--     KIKO ANIME STEAL (V4 - VALOR + GANHOS POR /S)      --
 --========================================================--
 
 local Players = game:GetService("Players")
@@ -216,7 +216,7 @@ FloatingStroke.Parent = Floating
 
 local MenuContainer = Instance.new("CanvasGroup")
 MenuContainer.Name = "MainMenu"
-MenuContainer.Size = UDim2.new(0, 280, 0, 350)
+MenuContainer.Size = UDim2.new(0, 280, 0, 440)
 MenuContainer.Position = UDim2.new(0.85, -140, 0.35, -175)
 MenuContainer.BackgroundColor3 = CONFIG.Background
 MenuContainer.BorderSizePixel = 0
@@ -362,9 +362,11 @@ CharacterLayout.Padding = UDim.new(0, 1)
 CharacterLayout.Parent = CharacterList
 
 local StealButton = CreateButton("⚡ STEAL", 92)
-local SpeedButton = CreateButton("⚡ SPEED: 36 | ON", 138)
-local RejoinButton = CreateButton("↻ REJOIN SERVER", 184)
-local ServerHopButton = CreateButton("🌐 MUDAR DE SERVIDOR", 230)
+local TimeoutButton = CreateButton("⏱️ TEMPO DE ESPERA: 5s", 138)
+local AutoEButton = CreateButton("🖐️ AUTO 'E' (ROUBO): OFF", 184)
+local SpeedButton = CreateButton("⚡ SPEED: 36 | ON", 230)
+local RejoinButton = CreateButton("↻ REJOIN SERVER", 276)
+local ServerHopButton = CreateButton("🌐 MUDAR DE SERVIDOR", 322)
 
 --========================================================--
 -- VARIÁVEIS DE ESTADO
@@ -375,6 +377,10 @@ local SelectedCharacter = nil
 local MenuOpen = false
 local SpeedEnabled = true
 local DetectedExpensiveList = {}
+
+-- CONFIGURAÇÕES DE STEAL
+local StealTimeout = 5
+local AutoInteractE = false
 
 --========================================================--
 -- FUNÇÕES DE SUPORTE E PARSER DE VALORES
@@ -700,6 +706,32 @@ CharacterButton.MouseButton1Click:Connect(function()
     if CharacterList.Visible then UpdateCharacters() end
 end)
 
+-- LÓGICA DO BOTÃO DE TEMPO
+TimeoutButton.MouseButton1Click:Connect(function()
+    PlaySound(SOUNDS.Click, 0.5)
+    if StealTimeout == 5 then
+        StealTimeout = 3
+        TimeoutButton.Text = "⏱️ TEMPO DE ESPERA: 3s"
+    else
+        StealTimeout = 5
+        TimeoutButton.Text = "⏱️ TEMPO DE ESPERA: 5s"
+    end
+end)
+
+-- LÓGICA DO BOTÃO DE AUTO 'E'
+AutoEButton.MouseButton1Click:Connect(function()
+    PlaySound(SOUNDS.Click, 0.5)
+    AutoInteractE = not AutoInteractE
+    
+    if AutoInteractE then
+        AutoEButton.Text = "🖐️ AUTO 'E' (ROUBO): ON"
+        Notify("Auto 'E' Ligado", "O script vai spammar a coleta!", 3, CONFIG.Success)
+    else
+        AutoEButton.Text = "🖐️ AUTO 'E' (ROUBO): OFF"
+        Notify("Auto 'E' Desligado", "Você precisará segurar o 'E' manualmente.", 3, CONFIG.Warning)
+    end
+end)
+
 local speedConnection
 local function ApplySpeed()
     local Character = LocalPlayer.Character
@@ -782,7 +814,7 @@ ServerHopButton.MouseButton1Click:Connect(function()
     end
 end)
 
--- STEAL COM TIMEOUT / RECONTAGEM DINÂMICA (AUTO-DETECT)
+-- STEAL COM TIMEOUT DINÂMICO E AUTO-E
 StealButton.MouseButton1Click:Connect(function()
     PlaySound(SOUNDS.Click, 0.5)
     if not SelectedBase then
@@ -836,39 +868,42 @@ StealButton.MouseButton1Click:Connect(function()
         end
     end)
 
-    -- === NOVO SISTEMA DE DETECÇÃO INSTANTÂNEA ===
-    local timeout = 6
+    -- === DETECÇÃO E AUTO-E ===
     local tickRate = 0.1
     local timeWaited = 0
-    local isStealing = true -- Variável para controlar a notificação
+    local isStealing = true
 
-    -- Notificação em paralelo (para se o anime for pego antes)
     task.spawn(function()
-        for i = timeout, 1, -1 do
-            if not isStealing then break end -- Corta a notificação se já pegou o anime
-            Notify("⚡ ROUBANDO ANIME...", "Aguarde " .. i .. "s ou até coletar!", 1, CONFIG.Warning)
+        for i = StealTimeout, 1, -1 do
+            if not isStealing then break end
+            Notify("⚡ ROUBANDO...", "Aguarde " .. i .. "s ou até coletar!", 1, CONFIG.Warning)
             task.wait(1)
         end
     end)
 
-    -- Loop de verificação (Roda a cada 0.1s para teleportar instantaneamente)
-    while timeWaited < timeout do
-        -- Checa se o anime está na sua mão (ferramenta equipada)
+    while timeWaited < StealTimeout do
+        -- DISPARA O E INVISÍVEL
+        if AutoInteractE and SelectedCharacter then
+            for _, item in ipairs(SelectedCharacter:GetDescendants()) do
+                if item:IsA("ProximityPrompt") then
+                    pcall(function() fireproximityprompt(item, 1, true) end)
+                end
+            end
+        end
+
         local hasToolInHand = Character:FindFirstChildOfClass("Tool")
-        
-        -- Checa se o anime sumiu da base inimiga (foi coletado)
         local targetGone = (not SelectedCharacter or not SelectedCharacter.Parent)
 
         if hasToolInHand or targetGone then
-            break -- Sai do loop imediatamente e vai para o teleporte
+            break
         end
 
         task.wait(tickRate)
         timeWaited = timeWaited + tickRate
     end
 
-    isStealing = false -- Avisa o loop de notificação para parar
-    -- ============================================
+    isStealing = false 
+    -- ===========================
 
     local MyBase = GetMyBase()
     if MyBase then
@@ -896,23 +931,24 @@ StealButton.MouseButton1Click:Connect(function()
 
     ApplySpeed()
     PlaySound(SOUNDS.StealSuccess, 0.8)
-    Notify("STEAL CONCLUÍDO!", "Você foi teleportado de volta com sucesso!", 4, CONFIG.Success)
+    Notify("STEAL CONCLUÍDO!", "Retornando para a base...", 4, CONFIG.Success)
 end)
+
 --========================================================--
--- ANIMAÇÕES DO MENU
+-- ANIMAÇÕES DO MENU E INTERAÇÕES (CLOSE/OPEN)
 --========================================================--
 
 local function OpenMenu()
     PlaySound(SOUNDS.Open, 0.5)
     MenuOpen = true
     MenuContainer.Visible = true
-    MenuContainer.Size = UDim2.new(0, 280, 0, 320)
+    MenuContainer.Size = UDim2.new(0, 280, 0, 390)
     MenuContainer.GroupTransparency = 1
 
     local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
     TweenService:Create(MenuContainer, tweenInfo, {
         GroupTransparency = 0,
-        Size = UDim2.new(0, 280, 0, 350)
+        Size = UDim2.new(0, 280, 0, 440)
     }):Play()
 end
 
@@ -925,15 +961,17 @@ local function CloseMenu()
     local tweenInfo = TweenInfo.new(0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
     TweenService:Create(MenuContainer, tweenInfo, {
         GroupTransparency = 1,
-        Size = UDim2.new(0, 280, 0, 320)
+        Size = UDim2.new(0, 280, 0, 390)
     }):Play()
 
-    task.delay(0.26, function()
+    task.delay(0.25, function()
         if not MenuOpen then
             MenuContainer.Visible = false
         end
     end)
 end
+
+Close.MouseButton1Click:Connect(CloseMenu)
 
 Floating.MouseButton1Click:Connect(function()
     if MenuOpen then
@@ -943,12 +981,10 @@ Floating.MouseButton1Click:Connect(function()
     end
 end)
 
-Close.MouseButton1Click:Connect(function()
-    CloseMenu()
-end)
-
+-- ABRIR/FECHAR COM A TECLA "K"
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if not gameProcessed and input.KeyCode == Enum.KeyCode.RightControl then
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.K then
         if MenuOpen then
             CloseMenu()
         else
