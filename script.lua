@@ -1,5 +1,5 @@
 --========================================================--
---     KIKO ANIME STEAL (V4 - VALOR + GANHOS POR /S)      --
+--     KIKO ANIME STEAL (V5 - AUTO-E FIX + DRAGGABLE)     --
 --========================================================--
 
 local Players = game:GetService("Players")
@@ -184,7 +184,7 @@ local function Notify(title, message, duration, themeColor, soundId)
 end
 
 --========================================================--
--- BOTÃO FLUTUANTE
+-- BOTÃO FLUTUANTE (MÓVEL / ARRASTÁVEL)
 --========================================================--
 
 local Floating = Instance.new("TextButton")
@@ -198,6 +198,7 @@ Floating.TextColor3 = CONFIG.Text
 Floating.TextSize = 22
 Floating.Font = Enum.Font.GothamBold
 Floating.AutoButtonColor = false
+Floating.Active = true
 Floating.ZIndex = 500
 Floating.Parent = ScreenGui
 
@@ -209,6 +210,47 @@ local FloatingStroke = Instance.new("UIStroke")
 FloatingStroke.Color = CONFIG.Accent
 FloatingStroke.Thickness = 2
 FloatingStroke.Parent = Floating
+
+-- SISTEMA DE ARRASTE (DRAG) PARA O BOTÃO FLUTUANTE
+local dragging
+local dragInput
+local dragStart
+local startPos
+local isDraggingAction = false -- Evita clicar sem querer ao arrastar
+
+Floating.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = Floating.Position
+        isDraggingAction = false
+        
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+Floating.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        local delta = input.Position - dragStart
+        if delta.Magnitude > 3 then 
+            isDraggingAction = true 
+        end
+        Floating.Position = UDim2.new(
+            startPos.X.Scale, startPos.X.Offset + delta.X,
+            startPos.Y.Scale, startPos.Y.Offset + delta.Y
+        )
+    end
+end)
 
 --========================================================--
 -- MENU PRINCIPAL
@@ -507,7 +549,6 @@ local function CheckExpensiveAnimes(baseName, baseObject)
                 if Character:IsA("Model") then
                     local valStr, incStr, rawVal, rawInc = GetCharacterStats(Character)
                     
-                    -- Se o valor ou os ganhos equivalerem a >= 100M (100,000,000)
                     if rawVal >= 100000000 or rawInc >= 100000000 then
                         local charId = Character:GetDebugId()
                         if not DetectedExpensiveList[charId] then
@@ -556,7 +597,6 @@ local function GetBases()
 
         if PlayerName and PlayerName ~= "" then
             local maxRaw, maxValStr, maxIncStr = GetBaseHighestValue(Base)
-            
             CheckExpensiveAnimes(PlayerName, Base)
 
             table.insert(Result, {
@@ -676,7 +716,6 @@ local function UpdateCharacters()
     CharacterList.CanvasSize = UDim2.new(0, 0, 0, CharacterLayout.AbsoluteContentSize.Y + 5)
 end
 
--- Scan em segundo plano
 task.spawn(function()
     while true do
         task.wait(10)
@@ -706,7 +745,6 @@ CharacterButton.MouseButton1Click:Connect(function()
     if CharacterList.Visible then UpdateCharacters() end
 end)
 
--- LÓGICA DO BOTÃO DE TEMPO
 TimeoutButton.MouseButton1Click:Connect(function()
     PlaySound(SOUNDS.Click, 0.5)
     if StealTimeout == 5 then
@@ -718,14 +756,13 @@ TimeoutButton.MouseButton1Click:Connect(function()
     end
 end)
 
--- LÓGICA DO BOTÃO DE AUTO 'E'
 AutoEButton.MouseButton1Click:Connect(function()
     PlaySound(SOUNDS.Click, 0.5)
     AutoInteractE = not AutoInteractE
     
     if AutoInteractE then
         AutoEButton.Text = "🖐️ AUTO 'E' (ROUBO): ON"
-        Notify("Auto 'E' Ligado", "O script vai spammar a coleta!", 3, CONFIG.Success)
+        Notify("Auto 'E' Ligado", "O script vai segurar E automaticamente!", 3, CONFIG.Success)
     else
         AutoEButton.Text = "🖐️ AUTO 'E' (ROUBO): OFF"
         Notify("Auto 'E' Desligado", "Você precisará segurar o 'E' manualmente.", 3, CONFIG.Warning)
@@ -814,7 +851,10 @@ ServerHopButton.MouseButton1Click:Connect(function()
     end
 end)
 
--- STEAL COM TIMEOUT DINÂMICO E AUTO-E
+--========================================================--
+-- STEAL LOGIC (FIXADO COM SEGURAR E SEM SPAM)
+--========================================================--
+
 StealButton.MouseButton1Click:Connect(function()
     PlaySound(SOUNDS.Click, 0.5)
     if not SelectedBase then
@@ -868,10 +908,11 @@ StealButton.MouseButton1Click:Connect(function()
         end
     end)
 
-    -- === DETECÇÃO E AUTO-E ===
+    -- === DETECÇÃO E AUTO-E FIXO (SEGURAR) ===
     local tickRate = 0.1
     local timeWaited = 0
     local isStealing = true
+    local promptApertado = false 
 
     task.spawn(function()
         for i = StealTimeout, 1, -1 do
@@ -881,26 +922,20 @@ StealButton.MouseButton1Click:Connect(function()
         end
     end)
 
-while timeWaited < StealTimeout do
-        -- AUTO-E FORÇADO (Bypass de distância e tempo)
-        if AutoInteractE and SelectedCharacter then
+    while timeWaited < StealTimeout do
+        if AutoInteractE and not promptApertado and SelectedCharacter then
             for _, item in ipairs(SelectedCharacter:GetDescendants()) do
                 if item:IsA("ProximityPrompt") then
+                    promptApertado = true
                     pcall(function()
-                        -- Remove as restrições físicas do botão
-                        item.HoldDuration = 0
                         item.RequiresLineOfSight = false
                         item.MaxActivationDistance = 99999
                         
-                        -- Método 1: Executor
                         if fireproximityprompt then
-                            fireproximityprompt(item)
+                            task.spawn(function() pcall(function() fireproximityprompt(item, 1, true) end) end)
                         end
                         
-                        -- Método 2: Fallback nativo do Roblox (caso o executor falhe)
                         item:InputHoldBegin()
-                        task.wait(0.05)
-                        item:InputHoldEnd()
                     end)
                 end
             end
@@ -916,7 +951,17 @@ while timeWaited < StealTimeout do
         task.wait(tickRate)
         timeWaited = timeWaited + tickRate
     end
-    -- ===========================
+
+    if promptApertado and SelectedCharacter then
+        for _, item in ipairs(SelectedCharacter:GetDescendants()) do
+            if item:IsA("ProximityPrompt") then
+                pcall(function() item:InputHoldEnd() end)
+            end
+        end
+    end
+
+    isStealing = false 
+    -- ========================================
 
     local MyBase = GetMyBase()
     if MyBase then
@@ -986,11 +1031,14 @@ end
 
 Close.MouseButton1Click:Connect(CloseMenu)
 
+-- Abre o menu se houver um clique no botão flutuante e NÃO for um arrasto
 Floating.MouseButton1Click:Connect(function()
-    if MenuOpen then
-        CloseMenu()
-    else
-        OpenMenu()
+    if not isDraggingAction then
+        if MenuOpen then
+            CloseMenu()
+        else
+            OpenMenu()
+        end
     end
 end)
 
