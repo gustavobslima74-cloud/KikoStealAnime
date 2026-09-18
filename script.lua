@@ -1,5 +1,8 @@
 --========================================================--
---  KIKO ANIME STEAL V9 - VERTICAL PROFISSIONAL            --
+--  KIKO ANIME STEAL V10                                    --
+--  • Auto Hold E no steal                                  --
+--  • Ignora sua própria base                               --
+--  • Auto Selecionar Melhor (base + personagem)            --
 --========================================================--
 
 local Players           = game:GetService("Players")
@@ -9,11 +12,12 @@ local RunService        = game:GetService("RunService")
 local TeleportService   = game:GetService("TeleportService")
 local HttpService       = game:GetService("HttpService")
 local SoundService      = game:GetService("SoundService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local LocalPlayer = Players.LocalPlayer
 
 --========================================================--
--- STATE (declarado ANTES de qualquer handler - fix do bug)
+-- STATE
 --========================================================--
 
 local SelectedBase          = nil
@@ -24,10 +28,12 @@ local DetectedExpensiveList = {}
 local StealTimeout          = 5
 local AutoCollectCash       = false
 local AutoLockBase          = false
+local AutoHoldE             = true
+local IsStealing            = false
 local speedConnection       = nil
 
 --========================================================--
--- CONFIG / PALETA
+-- CONFIG
 --========================================================--
 
 local CONFIG = {
@@ -76,7 +82,7 @@ local function PlaySound(id, vol)
 end
 
 --========================================================--
--- SPEED (definido cedo para ser usado em handlers)
+-- SPEED
 --========================================================--
 
 local function ApplySpeed()
@@ -117,10 +123,10 @@ end)
 --========================================================--
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name             = "KikoAnimeSteal"
-ScreenGui.ResetOnSpawn     = false
-ScreenGui.IgnoreGuiInset   = true
-ScreenGui.ZIndexBehavior   = Enum.ZIndexBehavior.Sibling
+ScreenGui.Name           = "KikoAnimeSteal"
+ScreenGui.ResetOnSpawn   = false
+ScreenGui.IgnoreGuiInset = true
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
 pcall(function()
     ScreenGui.Parent = (gethui and gethui()) or game:GetService("CoreGui")
@@ -130,7 +136,7 @@ if not ScreenGui.Parent then
 end
 
 --========================================================--
--- NOTIFICAÇÕES (TOASTS)
+-- NOTIFICAÇÕES
 --========================================================--
 
 local NotifBox = Instance.new("Frame")
@@ -162,8 +168,8 @@ local function Notify(title, message, duration, color, soundId)
     Instance.new("UICorner", toast).CornerRadius = UDim.new(0, 8)
 
     local stroke = Instance.new("UIStroke", toast)
-    stroke.Color       = CONFIG.Border
-    stroke.Thickness   = 1
+    stroke.Color        = CONFIG.Border
+    stroke.Thickness    = 1
     stroke.Transparency = 1
 
     local bar = Instance.new("Frame")
@@ -227,19 +233,19 @@ end
 --========================================================--
 
 local Floating = Instance.new("TextButton")
-Floating.Name            = "FloatingButton"
-Floating.Size            = UDim2.new(0, 46, 0, 46)
-Floating.Position        = UDim2.new(1, -62, 0.4, -23)
+Floating.Name             = "FloatingButton"
+Floating.Size             = UDim2.new(0, 46, 0, 46)
+Floating.Position         = UDim2.new(1, -62, 0.4, -23)
 Floating.BackgroundColor3 = CONFIG.Surface
-Floating.BorderSizePixel = 0
-Floating.Text            = "K"
-Floating.TextColor3      = CONFIG.Accent
-Floating.TextSize        = 20
-Floating.Font            = Enum.Font.GothamBlack
-Floating.AutoButtonColor = false
-Floating.Active          = true
-Floating.ZIndex          = 500
-Floating.Parent          = ScreenGui
+Floating.BorderSizePixel  = 0
+Floating.Text             = "K"
+Floating.TextColor3       = CONFIG.Accent
+Floating.TextSize         = 20
+Floating.Font             = Enum.Font.GothamBlack
+Floating.AutoButtonColor  = false
+Floating.Active           = true
+Floating.ZIndex           = 500
+Floating.Parent           = ScreenGui
 
 Instance.new("UICorner", Floating).CornerRadius = UDim.new(1, 0)
 
@@ -254,10 +260,10 @@ local isDraggingAction = false
 Floating.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1
     or input.UserInputType == Enum.UserInputType.Touch then
-        dragging          = true
-        dragStart         = input.Position
-        startPos          = Floating.Position
-        isDraggingAction  = false
+        dragging         = true
+        dragStart        = input.Position
+        startPos         = Floating.Position
+        isDraggingAction = false
         input.Changed:Connect(function()
             if input.UserInputState == Enum.UserInputState.End then
                 dragging = false
@@ -292,10 +298,10 @@ Floating.MouseLeave:Connect(function()
 end)
 
 --========================================================--
--- JANELA PRINCIPAL
+-- JANELA
 --========================================================--
 
-local WINDOW_W, WINDOW_H = 300, 500
+local WINDOW_W, WINDOW_H = 300, 520
 
 local Main = Instance.new("Frame")
 Main.Name = "MainWindow"
@@ -307,7 +313,6 @@ Main.BackgroundTransparency = 1
 Main.Visible = false
 Main.ZIndex = 100
 Main.Parent = ScreenGui
-
 Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 12)
 
 local MainStroke = Instance.new("UIStroke", Main)
@@ -323,7 +328,6 @@ Header.BorderSizePixel = 0
 Header.BackgroundTransparency = 1
 Header.ZIndex = 101
 Header.Parent = Main
-
 Instance.new("UICorner", Header).CornerRadius = UDim.new(0, 12)
 
 local HeaderLine = Instance.new("Frame")
@@ -380,7 +384,7 @@ Close.MouseLeave:Connect(function()
     TweenService:Create(Close, TweenInfo.new(0.15), {BackgroundTransparency = 1, TextColor3 = CONFIG.SubText}):Play()
 end)
 
--- Body (scrollable)
+-- Body
 local Body = Instance.new("ScrollingFrame")
 Body.Size = UDim2.new(1, -20, 1, -58)
 Body.Position = UDim2.new(0, 10, 0, 50)
@@ -394,15 +398,15 @@ Body.ZIndex = 101
 Body.Parent = Main
 
 local BodyLayout = Instance.new("UIListLayout", Body)
-BodyLayout.Padding = UDim.new(0, 6)
+BodyLayout.Padding   = UDim.new(0, 6)
 BodyLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
 local BodyPad = Instance.new("UIPadding", Body)
-BodyPad.PaddingTop = UDim.new(0, 4)
+BodyPad.PaddingTop    = UDim.new(0, 4)
 BodyPad.PaddingBottom = UDim.new(0, 12)
 
 --========================================================--
--- HELPERS DE UI
+-- HELPERS UI
 --========================================================--
 
 local orderCounter = 0
@@ -448,7 +452,6 @@ local function Button(parent, text, height, opts)
     btn.AutoButtonColor = false
     btn.LayoutOrder = nextOrder()
     btn.Parent = parent
-
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
 
     local stroke = Instance.new("UIStroke", btn)
@@ -505,7 +508,6 @@ local function Toggle(parent, label, initialState, onChange)
     btn.AutoButtonColor = false
     btn.LayoutOrder = nextOrder()
     btn.Parent = parent
-
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
 
     local stroke = Instance.new("UIStroke", btn)
@@ -586,33 +588,51 @@ local function Toggle(parent, label, initialState, onChange)
 end
 
 --========================================================--
--- CONTEÚDO DO BODY
+-- CONTEÚDO
 --========================================================--
 
 Section("Seleção")
 local BaseButton, BaseLabel           = Button(Body, "Selecionar Base",       40, {chevron = true})
 local CharacterButton, CharacterLabel = Button(Body, "Selecionar Personagem", 40, {chevron = true})
+local AutoSelectButton, AutoSelectLbl = Button(Body, "✨  Auto Selecionar Melhor", 38, {
+    color        = CONFIG.SurfaceAlt,
+    hoverColor   = CONFIG.SurfaceHover,
+    stroke       = CONFIG.Accent,
+    strokeTransparency = 0.7,
+    textColor    = CONFIG.Accent2,
+    font         = Enum.Font.GothamBold,
+    textSize     = 11,
+})
 
 Section("Ações")
 local StealButton, StealLabel = Button(Body, "⚡  EXECUTAR STEAL", 42, {
-    color = CONFIG.Accent,
+    color      = CONFIG.Accent,
     hoverColor = CONFIG.Accent2,
-    stroke = CONFIG.Accent,
+    stroke     = CONFIG.Accent,
     strokeTransparency = 0.6,
-    textColor = Color3.new(1, 1, 1),
-    font = Enum.Font.GothamBold,
-    textSize = 12,
+    textColor  = Color3.new(1, 1, 1),
+    font       = Enum.Font.GothamBold,
+    textSize   = 12,
     accentFill = true,
 })
 
 local TimeoutPill, TimeoutLabel = Button(Body, "⏱  Tempo de espera · 5s", 34, {
-    color = CONFIG.SurfaceAlt,
+    color     = CONFIG.SurfaceAlt,
     textColor = CONFIG.SubText,
-    font = Enum.Font.Gotham,
-    textSize = 10,
+    font      = Enum.Font.Gotham,
+    textSize  = 10,
 })
 
 Section("Automação")
+Toggle(Body, "🎯  Auto Coletar (Hold E)", AutoHoldE, function(on)
+    AutoHoldE = on
+    if on then
+        Notify("Auto Coletar", "Steal vai segurar E automaticamente.", 3, CONFIG.Success)
+    else
+        Notify("Auto Coletar", "Você precisará segurar E manualmente.", 3, CONFIG.Warning)
+    end
+end)
+
 Toggle(Body, "💰  Auto Collect Cash", AutoCollectCash, function(on)
     AutoCollectCash = on
     if on then
@@ -653,7 +673,7 @@ task.defer(function()
 end)
 
 --========================================================--
--- OVERLAYS (Base / Personagem)
+-- OVERLAYS
 --========================================================--
 
 local function BuildOverlay(name, title)
@@ -851,6 +871,7 @@ local function CheckExpensiveAnimes(baseName, baseObject)
     end
 end
 
+-- Lista bases EXCLUINDO a sua própria
 local function GetBases()
     local Result = {}
     local Bases = workspace:FindFirstChild("Bases")
@@ -872,12 +893,15 @@ local function GetBases()
             end
         end
         if playerName and playerName ~= "" then
-            local maxRaw, maxValStr, maxIncStr = GetBaseHighestValue(Base)
-            CheckExpensiveAnimes(playerName, Base)
-            table.insert(Result, {
-                Object = Base, Name = playerName,
-                HighestRaw = maxRaw, HighestValStr = maxValStr, HighestIncStr = maxIncStr
-            })
+            -- ── IGNORA SUA PRÓPRIA BASE ──
+            if not MatchesPlayer(playerName) then
+                local maxRaw, maxValStr, maxIncStr = GetBaseHighestValue(Base)
+                CheckExpensiveAnimes(playerName, Base)
+                table.insert(Result, {
+                    Object = Base, Name = playerName,
+                    HighestRaw = maxRaw, HighestValStr = maxValStr, HighestIncStr = maxIncStr
+                })
+            end
         end
     end
     table.sort(Result, function(a, b) return a.HighestRaw > b.HighestRaw end)
@@ -912,8 +936,8 @@ end
 
 local function UpdateBases()
     ClearList(BaseList)
-    BaseHeader.Text = "Bases Disponíveis (" .. #GetBases() .. ")"
     local Bases = GetBases()
+    BaseHeader.Text = "Bases Disponíveis (" .. #Bases .. ")"
     for _, Data in ipairs(Bases) do
         local displayName = Data.Name
         local tags = {}
@@ -999,17 +1023,48 @@ local function UpdateCharacters()
     CharList.CanvasSize = UDim2.new(0, 0, 0, CharLayout.AbsoluteContentSize.Y + 10)
 end
 
-task.spawn(function()
-    while true do
-        task.wait(10)
-        pcall(function() GetBases() end)
+--========================================================--
+-- AUTO SELECIONAR MELHOR
+--========================================================--
+
+local function AutoSelectBest()
+    local bases = GetBases()  -- já exclui a sua
+    if #bases == 0 then
+        Notify("Auto Selecionar", "Nenhuma base disponível.", 4, CONFIG.Warning)
+        return false
     end
-end)
+
+    local best = bases[1]  -- já ordenado por maior valor
+
+    local chars = GetCharacters(best.Object)
+    if #chars == 0 then
+        Notify("Auto Selecionar", "Base encontrada, mas sem personagens.", 4, CONFIG.Warning)
+        SelectedBase = best.Object
+        SelectedCharacter = nil
+        BaseLabel.Text = best.Name
+        CharacterLabel.Text = "Selecionar Personagem"
+        return false
+    end
+
+    local bestChar = chars[1]  -- já ordenado por maior valor
+
+    SelectedBase      = best.Object
+    SelectedCharacter = bestChar.Object
+    BaseLabel.Text      = best.Name
+    CharacterLabel.Text = bestChar.Name
+
+    Notify(
+        "✨ Auto Selecionado",
+        "Base: " .. best.Name .. "\nPersonagem: " .. bestChar.Name ..
+        (bestChar.ValueStr and ("\nValor: " .. bestChar.ValueStr) or ""),
+        5, CONFIG.Success
+    )
+    PlaySound(SOUNDS.RareFound, 0.5)
+    return true
+end
 
 --========================================================--
--- LOOP: AUTO COLLECT & AUTO LOCK
--- (lógica original mantida — agora as vars são atualizadas
---  corretamente pelos closures acima)
+-- LOOP AUTO COLLECT / AUTO LOCK
 --========================================================--
 
 task.spawn(function()
@@ -1092,8 +1147,8 @@ task.spawn(function()
                                 firetouchinterest(hrp, touch.Parent, 1)
                             end)
                         end
-                        if click  and fireclickdetector    then pcall(function() fireclickdetector(click) end)       end
-                        if prompt and fireproximityprompt  then pcall(function() fireproximityprompt(prompt) end)   end
+                        if click  and fireclickdetector    then pcall(function() fireclickdetector(click) end)     end
+                        if prompt and fireproximityprompt  then pcall(function() fireproximityprompt(prompt) end) end
                     end
                 end
             end
@@ -1102,7 +1157,50 @@ task.spawn(function()
 end)
 
 --========================================================--
--- EVENTOS DOS BOTÕES
+-- AUTO HOLD E
+--========================================================--
+
+local function FireTargetPrompts()
+    if not SelectedCharacter then return end
+    pcall(function()
+        for _, obj in ipairs(SelectedCharacter:GetDescendants()) do
+            if obj:IsA("ProximityPrompt") and obj.Enabled then
+                if fireproximityprompt then
+                    fireproximityprompt(obj)
+                else
+                    obj:InputHoldBegin()
+                    task.wait(obj.HoldDuration or 0)
+                    obj:InputHoldEnd()
+                end
+            end
+        end
+    end)
+end
+
+local function StartHoldE()
+    FireTargetPrompts()
+
+    local viaVIM = pcall(function()
+        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+    end)
+
+    if not viaVIM then
+        pcall(function() keypress(0x45) end)  -- 0x45 = E
+    end
+
+    local released = false
+    return function()
+        if released then return end
+        released = true
+        pcall(function()
+            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+        end)
+        pcall(function() keyrelease(0x45) end)
+    end
+end
+
+--========================================================--
+-- EVENTOS
 --========================================================--
 
 BaseButton.MouseButton1Click:Connect(function()
@@ -1128,6 +1226,11 @@ CharacterButton.MouseButton1Click:Connect(function()
         UpdateCharacters()
         CharOverlay.Visible = true
     end
+end)
+
+AutoSelectButton.MouseButton1Click:Connect(function()
+    PlaySound(SOUNDS.Click, 0.5)
+    AutoSelectBest()
 end)
 
 TimeoutPill.MouseButton1Click:Connect(function()
@@ -1178,25 +1281,37 @@ ServerHopButton.MouseButton1Click:Connect(function()
 end)
 
 --========================================================--
--- STEAL LOGIC
+-- STEAL
 --========================================================--
 
 StealButton.MouseButton1Click:Connect(function()
     PlaySound(SOUNDS.Click, 0.5)
-    if not SelectedBase      then return Notify("Aviso", "Selecione uma base!", 3, CONFIG.Warning) end
-    if not SelectedCharacter then return Notify("Aviso", "Selecione um personagem!", 3, CONFIG.Warning) end
+
+    if IsStealing then
+        return Notify("Aviso", "Já estou roubando!", 3, CONFIG.Warning)
+    end
+
+    -- ── AUTO SELECIONA SE NADA ESTIVER SELECIONADO ──
+    if not SelectedBase or not SelectedCharacter then
+        Notify("Auto Selecionar", "Nada selecionado. Buscando melhor...", 3, CONFIG.Info)
+        if not AutoSelectBest() then
+            return
+        end
+        task.wait(0.3)
+    end
 
     local Character = LocalPlayer.Character
     if not Character then return end
 
     local HRP       = Character:FindFirstChild("HumanoidRootPart")
     local Humanoid  = Character:FindFirstChildOfClass("Humanoid")
-    local TargetHRP = SelectedCharacter:FindFirstChild("HumanoidRootPart")
+    local TargetHRP = SelectedCharacter and SelectedCharacter:FindFirstChild("HumanoidRootPart")
 
     if not HRP or not Humanoid or not TargetHRP then
         return Notify("Erro", "Alvo não localizado.", 3, CONFIG.Danger)
     end
 
+    IsStealing = true
     PlaySound(SOUNDS.StealStart, 0.8)
     local OldCFrame = HRP.CFrame
 
@@ -1229,23 +1344,41 @@ StealButton.MouseButton1Click:Connect(function()
 
     local tickRate, timeWaited, isStealing = 0.2, 0, true
 
+    -- ── INICIA AUTO HOLD E ──
+    local releaseE
+    if AutoHoldE then
+        releaseE = StartHoldE()
+    end
+
     task.spawn(function()
         for i = StealTimeout, 1, -1 do
             if not isStealing then break end
-            Notify("⚡ ROUBANDO...", "Segure 'E' no alvo! Voltando em " .. i .. "s", 1, CONFIG.Warning)
+            local msg = AutoHoldE
+                and ("Coletando automaticamente... " .. i .. "s")
+                or ("Segure 'E' no alvo! Voltando em " .. i .. "s")
+            Notify("⚡ ROUBANDO...", msg, 1, CONFIG.Warning)
             task.wait(1)
         end
     end)
 
+    local lastPromptRetry = 0
     while timeWaited < StealTimeout do
-        local hasTool   = Character:FindFirstChildOfClass("Tool")
+        local hasTool    = Character:FindFirstChildOfClass("Tool")
         local targetGone = (not SelectedCharacter or not SelectedCharacter.Parent)
         if hasTool or targetGone then break end
+
+        if AutoHoldE and (timeWaited - lastPromptRetry) >= 0.6 then
+            lastPromptRetry = timeWaited
+            FireTargetPrompts()
+        end
+
         task.wait(tickRate)
         timeWaited = timeWaited + tickRate
     end
 
+    if releaseE then releaseE() end
     isStealing = false
+    IsStealing = false
 
     local MyBase = GetMyBase()
     if MyBase then
@@ -1286,13 +1419,12 @@ local function OpenMenu()
     Main.Visible = true
 
     local ti = TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
-
-    TweenService:Create(Main,       ti, {BackgroundTransparency = 0}):Play()
-    TweenService:Create(MainStroke, ti, {Transparency = 0.2}):Play()
-    TweenService:Create(Header,     ti, {BackgroundTransparency = 0}):Play()
-    TweenService:Create(HeaderLine, ti, {BackgroundTransparency = 0.4}):Play()
-    TweenService:Create(AccentDot,  ti, {BackgroundTransparency = 0}):Play()
-    TweenService:Create(HeaderTitle,ti, {TextTransparency = 0}):Play()
+    TweenService:Create(Main,        ti, {BackgroundTransparency = 0}):Play()
+    TweenService:Create(MainStroke,  ti, {Transparency = 0.2}):Play()
+    TweenService:Create(Header,      ti, {BackgroundTransparency = 0}):Play()
+    TweenService:Create(HeaderLine,  ti, {BackgroundTransparency = 0.4}):Play()
+    TweenService:Create(AccentDot,   ti, {BackgroundTransparency = 0}):Play()
+    TweenService:Create(HeaderTitle, ti, {TextTransparency = 0}):Play()
 end
 
 local function CloseMenu()
@@ -1302,13 +1434,12 @@ local function CloseMenu()
     CharOverlay.Visible = false
 
     local to = TweenInfo.new(0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
-
-    TweenService:Create(Main,       to, {BackgroundTransparency = 1}):Play()
-    TweenService:Create(MainStroke, to, {Transparency = 1}):Play()
-    TweenService:Create(Header,     to, {BackgroundTransparency = 1}):Play()
-    TweenService:Create(HeaderLine, to, {BackgroundTransparency = 1}):Play()
-    TweenService:Create(AccentDot,  to, {BackgroundTransparency = 1}):Play()
-    TweenService:Create(HeaderTitle,to, {TextTransparency = 1}):Play()
+    TweenService:Create(Main,        to, {BackgroundTransparency = 1}):Play()
+    TweenService:Create(MainStroke,  to, {Transparency = 1}):Play()
+    TweenService:Create(Header,      to, {BackgroundTransparency = 1}):Play()
+    TweenService:Create(HeaderLine,  to, {BackgroundTransparency = 1}):Play()
+    TweenService:Create(AccentDot,   to, {BackgroundTransparency = 1}):Play()
+    TweenService:Create(HeaderTitle, to, {TextTransparency = 1}):Play()
 
     task.delay(0.25, function()
         if not MenuOpen then Main.Visible = false end
